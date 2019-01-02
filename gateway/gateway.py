@@ -21,23 +21,8 @@ CLIENT_MAC_ADDRESS = "a2:00:b4:2a:66:00"
 SERVER_PORT = ""
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-def client_thread(conn, ip, port, BUFFER_SIZE=MAX_BUFFER_SIZE):
-    receving = True
-    # the input is in bytes, so decode it
-    while receving:
-        input_from_client_bytes = conn.recv(BUFFER_SIZE))
-        siz=sys.getsizeof(input_from_client_bytes)
-        if siz >= BUFFER_SIZE:
-            print("The length of input is probably too long: {}".format(siz))
-
-        print("input size is ", siz)
-        # decode input and strip the end of line
-        input_from_client=input_from_client_bytes.decode("utf8").rstrip()
-        res=res.encode("utf8")  # encode the result string
-        con.sendall(res)  # send it to client
-        # conn.close()  # close connection
-        # print('Connection ' + ip + ':' + port + " ended")
 
 def accept():
     while accepting:
@@ -87,19 +72,5 @@ def start():
     except socket.error as msg:
         print('Bind failed. Error : ' + str(sys.exc_info()) + msg)
         sys.exit()
-
-
-    # conn, addr = soc.accept()
-    # ip, port=str(addr[0]), str(addr[1])
-    # print('Accepting connection from ' + ip + ':' + port)
-
-    # try:
-    #     Thread(target = client_thread, args = (conn, ip, port)).start()
-    # except:
-    #     print("Terible error!")
-    #     import traceback
-    #     traceback.print_exc()
-    # soc.close()
-
 
 start()
