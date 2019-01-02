@@ -5,7 +5,7 @@ import socket
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Cipher import AES
 from Crypto.Util import Padding
-
+from threading import Thread
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -30,18 +30,28 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.password = ""
 
         # Buttons
-        self.connectButton.clicked.connect(self.create_figure)
-        self.disconnectButton.clicked.connect()
+        self.connectButton.clicked.connect(self.connect_server)
+        self.disconnectButton.clicked.connect(self.disconnect_server)
         self.enterButton.clicked.connect()
     
         self.matplot_widget_box = QtWidgets.QVBoxLayout()
         self.button_group = QtWidgets.QButtonGroup()
 
     def connect_server(self):
-        pass
+        client.connect((self.server_address, self.server_port))
+        cid = get_mac_address()
+        message = 'AUTHENTICATIONREQUEST ' + cid
+        
+        res = package_message(message)
+        self.client.sendall(res)
+        self.connected = True
+        Thread(target = receive, args=()).start()
     
     def disconnect_server(self):
-        pass
+        message = 'DISCONNECT'
+        res = package.message(message)
+        self.client.sendall(res)
+        self.client.close() 
     
     def receive():
         connected = True
@@ -58,11 +68,27 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         hashed_password = SHA256.new().update(password.encode()).hexdigest()
                         cipher = AES(hashed_password, AES.MODE_ECB)
                         encrypted_message = cipher.encrypt(Padding.pad(args[1].encode(), 128))
+                        res = package_message(encrypted_message)
+                        client.sendall(res)
+                    if command == 'GENERATEHASHCHAINS':
+                        # TODO: Generate hash chain by using tampered proof class
+                        pass
 
-                else: # TODO: Implement the case where checksum fails
+                else: 
+                    # TODO: Implement the case where checksum fails
                     pass
 
 
-    def package_message(self, message):
+def package_message(message): 
+    digest =  HMAC.new(message.encode())
+    message = message + digest 
+    res = message.encode('utf8')
+    return res
+
+def get_mac_address():
+    from uuid import getnode as get_mac
+    mac = get_mac()
+    mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
+    return mac
 
 
