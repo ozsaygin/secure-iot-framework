@@ -18,6 +18,7 @@ PORT=12345
 SERVER_PORT = ""
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+auth_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # def accept():
@@ -46,6 +47,7 @@ def package_message(message):
 
 def integrity_check(message, hmac):
     digest = HMAC.new(message).hexdigest()
+    print(digest, hmac)
     if digest.encode('utf-8') == hmac:
         return True
     else:
@@ -68,12 +70,20 @@ def receive(conn, ip, port):
                     message = buffer[:-32]
                     print("Message: ", message)
                     if integrity_check(message, hmac):
-                        #the request is going to be forwarded to Authentication Server expecting challenge
-                        conn.send(package_message("CHALLENGE "))
-                        print("CHALLENE sent to ",ip , ".")
+                        #get challenge from auth server
+                        auth_socket.send(package_message("AUTHENTICATION_REQUEST " + ip))
+                        authResp = auth_socket.recv(MAX_BUFFER_SIZE)
+                        authMess = authResp[:-32]
+                        authHMAC = authResp[len(authResp)-32:]
+                        if integrity_check(authMess, authHMAC):
+                            nonce = authResp[:32]
+                            conn.send(package_message(nonce.decode('utf8')))
+                            print("CHALLENGE sent to ",ip , ".")
+                        else:
+                            print("Integrity chech failed.")
                     else: #integrity failed
-                        conn.send("AF".encode("utf-8"))
-                elif state == 'CHALLENGE':
+                        conn.send("AUTHENTICATION_FAILED".encode("utf-8"))
+                elif state == 'CHALLENGE_RESPONSE':
                     print(state)
                 else:
                     print("Unexpected Path!")
@@ -91,6 +101,8 @@ def receive(conn, ip, port):
 def start():
     try:
         #connect to auth_server
+        auth_socket.connect(("127.0.0.1", 11111))
+        print("Connected to authentication server ip: 127.0.0.1, port: 11111.")
         if True:
             server.bind((HOST, PORT))
             print('Socket bind complete')

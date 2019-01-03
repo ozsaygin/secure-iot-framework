@@ -19,7 +19,6 @@ class symmtrc_cypr:
     def encrypt(self, mess):
         raw = Padding.pad(mess.encode(), 128)
         iv = Random.new().read(AES.block_size)
-        print(len(iv))
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
         return base64.b64encode(iv + cipher.encrypt(raw))
 
