@@ -4,6 +4,7 @@ import socket
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Cipher import AES
 from Crypto.Util import Padding
+from Crypto import Random
 from threading import Thread
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -27,11 +28,16 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.terminating = False
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.password = ""
+        self.hashed_password = ''
+        self.cipher = None
+
+        # Configuration
+        self.enterButton.setDisabled()
 
         # Buttons
         self.connectButton.clicked.connect(self.connect_server)
-        # self.disconnectButton.clicked.connect(self.disconnect_server)
-        # self.enterButton.clicked.connect()
+        self.disconnectButton.clicked.connect(self.disconnect_server)
+        self.enterButton.clicked.connect(self.enter_password)
 
         # Action Buttons
         def close_event(self, event):
@@ -44,15 +50,22 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def connect_server(self):
         self.server_address = self.serverAddressLineEdit.text()
         self.server_port = int(self.portNumberLineEdit.text())
-
         self.client.connect((self.server_address, self.server_port))
         message = 'AUTHENTICATIONREQUEST'
-        print(message)
         res = message.encode('utf8')
         self.client.sendall(res)
-        # self.connected = True
+        self.connected = True
         Thread(target = receive, args=()).start()
-    
+
+    def enter_password(self):
+        self.password = self.passwordLineEdit.text()
+        self.hashed_password = SHA256.new().update(password.encode()).hexdigest()
+        iv = Random.new().read(AES.block_size)
+        self.cipher = AES(self.hashed_password, AES.MODE_CBC, iv)
+        encrypted_message = iv + self.cipher.encrypt(Padding.pad(args[1].encode(), 128))
+        res = package_message(encrypted_message)
+        client.sendall(res)
+
     def disconnect_server(self):
         message = 'DISCONNECT'
         res = package.message(message)
@@ -65,6 +78,10 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         res = message.encode('utf8')
         return res
 
+    def get_ip():
+        from requests import get
+        ip = get('https://api.ipify.org').text
+        return ip
 
     def check_integrity(message: str, hmac: str) -> bool:
         '''
@@ -73,13 +90,11 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         :param 
         '''
         digest = HMAC.new(message.encode())
-
-
+        return(digest == hmac)
 
     def receive(self):
-        connected = True
         try:
-            while connected:
+            while self.connected:
                 buffer = client.recv(MAX_BUFFER_SIZE).decode('utf8')
                 message = buffer[:-32]
                 digest = buffer[len(buffer)-32:]
@@ -88,17 +103,12 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                     if (len(message.split()) > 1):
                         args = message.split()[1:]
                     if command == 'CHALLENGE':
-                        hashed_password = SHA256.new().update(password.encode()).hexdigest()
-                        cipher = AES(hashed_password, AES.MODE_ECB)
-                        encrypted_message = cipher.encrypt(Padding.pad(args[1].encode(), 128))
-                        res = package_message(encrypted_message)
-                        client.sendall(res)
-                    if command == 'GENERATEHASHCHAINS':
-                        # TODO: Generate hash chain by using tampered proof class
-                        pass
-
-                else: 
-                    # TODO: Implement the case where checksum fails
-                    pass
+                        print('Please enter your password and press Enter button')
+                        self.enterButton.setEnabled()
+                    # elif command == 'GENERATEHASHCHAINS':
+                    #     # TODO: Generate hash chain by using tampered proof class
+                # else: 
+                #     # TODO: Implement the case where checksum fails
+                #     pass
         except:
             print('Something is wrong...')
