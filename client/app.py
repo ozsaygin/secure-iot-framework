@@ -16,7 +16,10 @@ Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 MAX_BUFFER_SIZE = 4096
 
 
-def package_message(message): 
+def package_message(message) -> str: 
+    '''
+    param: message 
+    '''
     digest =  HMAC.new(message.encode())
     message = message + str(digest.hexdigest())
     res = message.encode('utf8')
@@ -38,6 +41,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.password = ""
         self.hashed_password = ''
         self.cipher = None
+        self.nonce = None
 
         # Configuration
         self.enterButton.setDisabled(True)
@@ -49,6 +53,9 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     # Action Buttons
     def close_event(self, event):
+        '''
+
+        '''
         reply = QtWidgets.QMessageBox.question(self, 'Message', 'Are you sure to quit?', QtWidgets.QMessageBox.Yes, QtGui.QMessageBox.No)
         if reply == QtWidgets.QMessageBox.Yes:
             event.accept()
@@ -67,17 +74,18 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
-        self.password = self.passwordLineEdit.text()
+        password = self.passwordLineEdit.text()
         h = SHA256.new()
         h.update(password.encode())
         hashed_password = h.hexdigest()
         self.key = hashed_password[:16]
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
+        encrypted_message = cipher.encrypt(Padding.pad(self.nonce.encode(),128))
         encrypted_message = iv + encrypted_message
-        message = 'CHALLENGE_RESPONSE ' + encrypted_message 
-        res = package_message(encrypted_message)
-        client.sendall(res)
+        message = 'CHALLENGE_RESPONSE ' + str(encrypted_message)
+        res = package_message(message)
+        self.client.sendall(res)
         
         # buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
         # message = buffer[:-32]
@@ -117,10 +125,12 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                     command = message.split()[0] # e.g: 'CHALLENGE'
                     if (len(message.split()) > 1):
                         args = message.split()[1:]
-                    if command == 'CHALLENGE':      
+                    if command == 'CHALLENGE':
+                        self.nonce = args[0]      
                         print('Please enter your password and press Enter button')
                         self.enterButton.setEnabled(True)
                     elif command == 'GENERATE_HASHCHAINS':
+                        pass
         except:
             import traceback
             traceback.print_exc()
