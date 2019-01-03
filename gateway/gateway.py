@@ -46,7 +46,6 @@ def package_message(message):
 
 def integrity_check(message, hmac):
     digest = HMAC.new(message).hexdigest()
-    print(hmac, digest)
     if digest.encode('utf-8') == hmac:
         return True
     else:
@@ -70,8 +69,8 @@ def receive(conn, ip, port):
                     print("Message: ", message)
                     if integrity_check(message, hmac):
                         #the request is going to be forwarded to Authentication Server expecting challenge
-                        conn.send("CHALLENGE".encode("utf-8"))
-                        print("Message sent.")
+                        conn.send(package_message("CHALLENGE "))
+                        print("CHALLENE sent to ",ip , ".")
                     else: #integrity failed
                         conn.send("AF".encode("utf-8"))
                 elif state == 'CHALLENGE':
