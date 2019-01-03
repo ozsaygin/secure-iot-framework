@@ -59,26 +59,27 @@ def receive(conn, ip, port):
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
                 print("The length of input is probably too long: {}".format(siz))
-            #message=buffer.decode("utf8").rstrip()
-            #----------states---------#
-            state = buffer[:1] #get state
-            print("State: ", state)
-            if state == b'AR':
-                hmac = buffer[len(buffer)-32:]
-                message = buffer[:-32]
-                print("Message: ", message)
-                if integrity_check(message, hmac):
-                    #the request is going to be forwarded to Authentication Server expecting challenge
-                    conn.send("CH".encode("utf-8"))
-                    print("Message sent.")
-                else: #integrity failed
-                    conn.send("ARF".encode("utf-8"))
-            elif state == b'CH':
-                print(state)
-            else:
-                print("Unexpected Path!")
                 socket_list[ip][2] = False
-            #----------states---------#
+            else:
+                #----------states---------#
+                state = buffer[:1] #get state
+                print("State: ", state)
+                if state == b'AR':
+                    hmac = buffer[len(buffer)-32:]
+                    message = buffer[:-32]
+                    print("Message: ", message)
+                    if integrity_check(message, hmac):
+                        #the request is going to be forwarded to Authentication Server expecting challenge
+                        conn.send("CH".encode("utf-8"))
+                        print("Message sent.")
+                    else: #integrity failed
+                        conn.send("ARF".encode("utf-8"))
+                elif state == b'CH':
+                    print(state)
+                else:
+                    print("Unexpected Path!")
+                    socket_list[ip][2] = False
+                #----------states---------#
         except:
             traceback.print_exc()
             recieving = False 
