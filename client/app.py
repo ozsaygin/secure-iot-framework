@@ -32,7 +32,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.cipher = None
 
         # Configuration
-        self.enterButton.setDisabled()
+        self.enterButton.setDisabled(True)
 
         # Buttons
         self.connectButton.clicked.connect(self.connect_server)
@@ -55,7 +55,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         res = message.encode('utf8')
         self.client.sendall(res)
         self.connected = True
-        Thread(target = receive, args=()).start()
+        Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
         self.password = self.passwordLineEdit.text()
@@ -74,7 +74,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def package_message(message): 
         digest =  HMAC.new(message.encode())
-        message = message + digest 
+        message = message + str(digest.hexdigest())
         res = message.encode('utf8')
         return res
 
@@ -95,14 +95,14 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def receive(self):
         try:
             while self.connected:
-                buffer = client.recv(MAX_BUFFER_SIZE).decode('utf8')
+                buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
                 message = buffer[:-32]
                 digest = buffer[len(buffer)-32:]
                 if HMAC.new(message.encode).hexdigest() == digest:
                     command = message.split()[0] # e.g: 'AUTHENTICATIONREQUEST', 'CHALLENGERESPONSE'
                     if (len(message.split()) > 1):
                         args = message.split()[1:]
-                    if command == 'CHALLENGE':
+                    if command == 'CHALLENGE':      
                         print('Please enter your password and press Enter button')
                         self.enterButton.setEnabled()
                     # elif command == 'GENERATEHASHCHAINS':
@@ -110,5 +110,6 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                 # else: 
                 #     # TODO: Implement the case where checksum fails
                 #     pass
-        except:
-            print('Something is wrong...')
+        except :
+            import traceback
+            traceback.print_exc()
