@@ -15,6 +15,14 @@ Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 
 MAX_BUFFER_SIZE = 4096
 
+
+def package_message(message): 
+    digest =  HMAC.new(message.encode())
+    message = message + str(digest.hexdigest())
+    res = message.encode('utf8')
+    return res
+
+
 class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def __init__(self):
         QtWidgets.QMainWindow.__init__(self)
@@ -39,46 +47,50 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.disconnectButton.clicked.connect(self.disconnect_server)
         self.enterButton.clicked.connect(self.enter_password)
 
-        # Action Buttons
-        def close_event(self, event):
-            reply = QtWidgets.QMessageBox.question(self, 'Message', 'Are you sure to quit?', QtWidgets.QMessageBox.Yes, QtGui.QMessageBox.No)
-            if reply == QtWidgets.QMessageBox.Yes:
-                event.accept()
-            else:
-                event.ignore
+    # Action Buttons
+    def close_event(self, event):
+        reply = QtWidgets.QMessageBox.question(self, 'Message', 'Are you sure to quit?', QtWidgets.QMessageBox.Yes, QtGui.QMessageBox.No)
+        if reply == QtWidgets.QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore
+
 
     def connect_server(self):
         self.server_address = self.serverAddressLineEdit.text()
         self.server_port = int(self.portNumberLineEdit.text())
         self.client.connect((self.server_address, self.server_port))
-        message = 'AUTHENTICATION_REQUEST'
-        res = message.encode('utf8')
+        message = 'AUTHENTICATION_REQUEST '
+        res = package_message(message)
         self.client.sendall(res)
         self.connected = True
         Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
-        # self.password = self.passwordLineEdit.text()
-        # h = SHA256.new()
-        # self.hashed_password = h.update(password.encode()).hexdigest()
-        # iv = Random.new().read(AES.block_size)
-        # self.cipher = AES(self.hashed_password, AES.MODE_CBC, iv)
-        # encrypted_message = iv + self.cipher.encrypt(Padding.pad(args[1].encode(), 128))
-        encrypted_message = 'HELLO'
+        self.password = self.passwordLineEdit.text()
+        h = SHA256.new()
+        h.update(password.encode())
+        hashed_password = h.hexdigest()
+        self.key = hashed_password[:16]
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
+        encrypted_message = iv + encrypted_message
+        message = 'CHALLENGE_RESPONSE ' + encrypted_message 
         res = package_message(encrypted_message)
         client.sendall(res)
+        
+        # buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
+        # message = buffer[:-32]
+        # digest = buffer[len(buffer)-32:]
+
+        # seeds are 128 bits   
+        # first 16 bits seed1, second 16 bits seed2
 
     def disconnect_server(self):
         message = 'DISCONNECT'
         res = package.message(message)
         self.client.sendall(res)
         self.client.close() 
-
-    def package_message(message): 
-        digest =  HMAC.new(message.encode())
-        message = message + str(digest.hexdigest())
-        res = message.encode('utf8')
-        return res
 
     def get_ip():
         from requests import get
@@ -99,6 +111,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
             while self.connected:
                 buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
                 message = buffer[:-32]
+                print('Message %s' % message)
                 digest = buffer[len(buffer)-32:]
                 if HMAC.new(message.encode()).hexdigest() == digest: # a valid digest
                     command = message.split()[0] # e.g: 'CHALLENGE'
@@ -107,6 +120,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                     if command == 'CHALLENGE':      
                         print('Please enter your password and press Enter button')
                         self.enterButton.setEnabled(True)
+                    elif command == 'GENERATE_HASHCHAINS':
         except:
             import traceback
             traceback.print_exc()
