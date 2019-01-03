@@ -51,18 +51,20 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.server_address = self.serverAddressLineEdit.text()
         self.server_port = int(self.portNumberLineEdit.text())
         self.client.connect((self.server_address, self.server_port))
-        message = 'AUTHENTICATIONREQUEST'
+        message = 'AUTHENTICATION_REQUEST'
         res = message.encode('utf8')
         self.client.sendall(res)
         self.connected = True
         Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
-        self.password = self.passwordLineEdit.text()
-        self.hashed_password = SHA256.new().update(password.encode()).hexdigest()
-        iv = Random.new().read(AES.block_size)
-        self.cipher = AES(self.hashed_password, AES.MODE_CBC, iv)
-        encrypted_message = iv + self.cipher.encrypt(Padding.pad(args[1].encode(), 128))
+        # self.password = self.passwordLineEdit.text()
+        # h = SHA256.new()
+        # self.hashed_password = h.update(password.encode()).hexdigest()
+        # iv = Random.new().read(AES.block_size)
+        # self.cipher = AES(self.hashed_password, AES.MODE_CBC, iv)
+        # encrypted_message = iv + self.cipher.encrypt(Padding.pad(args[1].encode(), 128))
+        encrypted_message = 'HELLO'
         res = package_message(encrypted_message)
         client.sendall(res)
 
@@ -98,18 +100,13 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                 buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
                 message = buffer[:-32]
                 digest = buffer[len(buffer)-32:]
-                if HMAC.new(message.encode).hexdigest() == digest:
-                    command = message.split()[0] # e.g: 'AUTHENTICATIONREQUEST', 'CHALLENGERESPONSE'
+                if HMAC.new(message.encode()).hexdigest() == digest: # a valid digest
+                    command = message.split()[0] # e.g: 'CHALLENGE'
                     if (len(message.split()) > 1):
                         args = message.split()[1:]
                     if command == 'CHALLENGE':      
                         print('Please enter your password and press Enter button')
-                        self.enterButton.setEnabled()
-                    # elif command == 'GENERATEHASHCHAINS':
-                    #     # TODO: Generate hash chain by using tampered proof class
-                # else: 
-                #     # TODO: Implement the case where checksum fails
-                #     pass
-        except :
+                        self.enterButton.setEnabled(True)
+        except:
             import traceback
             traceback.print_exc()
