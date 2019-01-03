@@ -22,9 +22,8 @@ PORT=12345
 
 CLIENT_PASSWORD = "su12345"
 GATEWAY_KEY = "su12345"
-CLIENT_MAC_ADDRESS = "70:c9:4e:fa:ab:ef" # Lenova Thinkpad
+CLIENT_MAC_ADDRESS = "70:C9:4E:FA:AB:EF" # Lenova Thinkpad
 SERVER_PORT = ""
-
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -89,7 +88,8 @@ def receive():
                     gateway_hashed_pwd = SHA256.new().update(GATEWAY_PASSWORD.encode()).hexdigest()
                     gateway_cipher = AES.new(gateway_hashed_pwd, AES.MOD_ECB)
 
-                    decrypted_msg = client_cipher.decrypt(Padding.pad(arg[1].encode(), 128))
+                    decrypted_msg = client_cipher.decrypt(Padding.unpad(arg[1].decode(), 128))
+                    # decyrpy unpad
                     
                     if nonce == decrypted_msg:
                         # if message is validated, sends  E(S1 | S2 , H(P)) | E( S1 | S2 | CID, GK)

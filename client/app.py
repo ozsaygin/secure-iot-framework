@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-
 import socket
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Cipher import AES
@@ -8,6 +7,7 @@ from Crypto.Util import Padding
 from threading import Thread
 
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import uic
 
 qtCreatorFile = "mainwindow.ui"
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
@@ -19,7 +19,6 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         QtWidgets.QMainWindow.__init__(self)
         Ui_MainWindow.__init__(self)
         self.setupUi(self)
-        self.load_config()
 
         # Global variables
         self.server_address = '127.0.0.1'
@@ -31,20 +30,27 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Buttons
         self.connectButton.clicked.connect(self.connect_server)
-        self.disconnectButton.clicked.connect(self.disconnect_server)
-        self.enterButton.clicked.connect()
-    
-        self.matplot_widget_box = QtWidgets.QVBoxLayout()
-        self.button_group = QtWidgets.QButtonGroup()
+        # self.disconnectButton.clicked.connect(self.disconnect_server)
+        # self.enterButton.clicked.connect()
+
+        # Action Buttons
+        def close_event(self, event):
+            reply = QtWidgets.QMessageBox.question(self, 'Message', 'Are you sure to quit?', QtWidgets.QMessageBox.Yes, QtGui.QMessageBox.No)
+            if reply == QtWidgets.QMessageBox.Yes:
+                event.accept()
+            else:
+                event.ignore
 
     def connect_server(self):
-        client.connect((self.server_address, self.server_port))
-        cid = get_mac_address()
-        message = 'AUTHENTICATIONREQUEST ' + cid
-        
-        res = package_message(message)
+        self.server_address = self.serverAddressLineEdit.text()
+        self.server_port = int(self.portNumberLineEdit.text())
+
+        self.client.connect((self.server_address, self.server_port))
+        message = 'AUTHENTICATIONREQUEST'
+        print(message)
+        res = message.encode('utf8')
         self.client.sendall(res)
-        self.connected = True
+        # self.connected = True
         Thread(target = receive, args=()).start()
     
     def disconnect_server(self):
@@ -52,8 +58,25 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         res = package.message(message)
         self.client.sendall(res)
         self.client.close() 
-    
-    def receive():
+
+    def package_message(message): 
+        digest =  HMAC.new(message.encode())
+        message = message + digest 
+        res = message.encode('utf8')
+        return res
+
+
+    def check_integrity(message: str, hmac: str) -> bool:
+        '''
+        :return 
+        :param
+        :param 
+        '''
+        digest = HMAC.new(message.encode())
+
+
+
+    def receive(self):
         connected = True
         try:
             while connected:
@@ -77,18 +100,5 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                 else: 
                     # TODO: Implement the case where checksum fails
                     pass
-
-
-def package_message(message): 
-    digest =  HMAC.new(message.encode())
-    message = message + digest 
-    res = message.encode('utf8')
-    return res
-
-def get_mac_address():
-    from uuid import getnode as get_mac
-    mac = get_mac()
-    mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
-    return mac
-
-
+        except:
+            print('Something is wrong...')
