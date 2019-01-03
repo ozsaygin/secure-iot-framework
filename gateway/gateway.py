@@ -38,10 +38,16 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #             import traceback
 #             traceback.print_exc()
 #             print("Listening socket stop working..")
+def package_message(message): 
+    digest =  HMAC.new(message.encode())
+    message = message + digest.hexdigest()
+    res = message.encode('utf8')
+    return res
 
 def integrity_check(message, hmac):
-    digest = HMAC.new(message.encode())
-    if digest == hmac:
+    digest = HMAC.new(message).hexdigest()
+    print(hmac, digest)
+    if digest.encode('utf-8') == hmac:
         return True
     else:
         return False
@@ -53,18 +59,25 @@ def receive(conn, ip, port):
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
                 print("The length of input is probably too long: {}".format(siz))
-            message=buffer.decode("utf8").rstrip()
+            #message=buffer.decode("utf8").rstrip()
             #----------states---------#
-            messageArr = message.split(" ") #get state
-            if messageArr[0] == "AR":
-                #the request is going to be forwarded to Authentication Server expecting challenge
-                print(messageArr[0])
-                conn.send("lillollel".encode("utf-8"))
-                print("Message sent.")
-            elif messageArr[0] == "CG":
+            state = buffer[:2] #get state
+            print("State: ", state)
+            if state == b'AR':
+                hmac = buffer[len(buffer)-32:]
+                message = buffer[:-32]
+                print("Message: ", message)
+                if integrity_check(message, hmac):
+                    #the request is going to be forwarded to Authentication Server expecting challenge
+                    conn.send("CH".encode("utf-8"))
+                    print("Message sent.")
+                else: #integrity failed
+                    conn.send("ARF".encode("utf-8"))
+            elif state == b'CH':
                 print(messageArr[0])
             else:
                 print("Unexpected Path!")
+                socket_list[ip][2] = False
             #----------states---------#
         except:
             traceback.print_exc()
