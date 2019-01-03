@@ -53,7 +53,7 @@ def integrity_check(message, hmac):
         return False
 
 def receive(conn, ip, port):
-    while socket_list[ip][2]:
+    while socket_list[ip][1]:
         try:
             buffer=conn.recv(MAX_BUFFER_SIZE)
             siz=sys.getsizeof(buffer)
@@ -61,7 +61,7 @@ def receive(conn, ip, port):
                 print("The length of input is probably too long: {}".format(siz))
             #message=buffer.decode("utf8").rstrip()
             #----------states---------#
-            state = buffer[:2] #get state
+            state = buffer[:1] #get state
             print("State: ", state)
             if state == b'AR':
                 hmac = buffer[len(buffer)-32:]
@@ -74,7 +74,7 @@ def receive(conn, ip, port):
                 else: #integrity failed
                     conn.send("ARF".encode("utf-8"))
             elif state == b'CH':
-                print(messageArr[0])
+                print(state)
             else:
                 print("Unexpected Path!")
                 socket_list[ip][2] = False
@@ -102,7 +102,7 @@ def start():
                 conn, addr = server.accept()
                 ip, port = str(addr[0]), str(addr[1])
                 print('Accepting connection from ' + ip + ':' + port)
-                socket_list[ip] = [conn, None, True]
+                socket_list[ip] = [conn, True]
                 try:
                     Thread(target=receive, args=(conn, ip, port)).start()
                 except:
