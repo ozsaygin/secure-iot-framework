@@ -62,23 +62,23 @@ def receive(conn, ip, port):
                 socket_list[ip][2] = False
             else:
                 #----------states---------#
-                state = buffer[:1] #get state
+                state = buffer.decode('utf-8').split()[0] #get state
                 print("State: ", state)
-                if state == b'AR':
+                if state == 'AUTHENTICATION_REQUEST':
                     hmac = buffer[len(buffer)-32:]
                     message = buffer[:-32]
                     print("Message: ", message)
                     if integrity_check(message, hmac):
                         #the request is going to be forwarded to Authentication Server expecting challenge
-                        conn.send("CH".encode("utf-8"))
+                        conn.send("CHALLENGE".encode("utf-8"))
                         print("Message sent.")
                     else: #integrity failed
-                        conn.send("ARF".encode("utf-8"))
-                elif state == b'CH':
+                        conn.send("AF".encode("utf-8"))
+                elif state == 'CHALLENGE':
                     print(state)
                 else:
                     print("Unexpected Path!")
-                    socket_list[ip][2] = False
+                    socket_list[ip][1] = False
                 #----------states---------#
         except:
             traceback.print_exc()
@@ -86,7 +86,7 @@ def receive(conn, ip, port):
             if not terminating:
                 print('client has disconnected')
             conn.close()
-            socket_list[ip][2] = False
+            socket_list[ip][1] = False
     del socket_list[ip]
             
 def start():
