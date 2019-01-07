@@ -14,7 +14,7 @@ listening = False
 terminating = False
 
 HOST="127.0.0.1"
-PORT = 12346
+PORT = 11115
 SERVER_PORT = ""
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,10 +40,9 @@ auth_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #             traceback.print_exc()
 #             print("Listening socket stop working..")
 def package_message(message): 
-    digest =  HMAC.new(message.encode())
-    message = message + digest.hexdigest()
-    res = message.encode('utf8')
-    return res
+    digest =  HMAC.new(message)
+    message = message + digest.hexdigest().encode()
+    return message
 
 def integrity_check(message, hmac):
     digest = HMAC.new(message).hexdigest()
@@ -62,9 +61,9 @@ def receive(conn, ip, port):
                 socket_list[ip][2] = False
             else:
                 #----------states---------#
-                state = buffer.decode('utf-8').split()[0] #get state
+                state = buffer[:2] #get state
                 print("State: ", state)
-                if state == 'AUTHENTICATION_REQUEST':
+                if state == b'AR':
                     print("Authentication Request recieved.")
                     hmac = buffer[len(buffer)-32:]
                     message = buffer[:-32]
@@ -72,21 +71,23 @@ def receive(conn, ip, port):
                     if integrity_check(message, hmac):
                         print("AUTHENTICATION_REQUEST Integrity check successful.")
                         #get challenge from auth server
-                        auth_socket.send(package_message("AUTHENTICATION_REQUEST " + ip))
+                        print("Requesting challenge from AS.")
+                        auth_socket.send(package_message(b'AR ' + ip.encode()))
                         authResp = auth_socket.recv(MAX_BUFFER_SIZE)
-                        authMess = authResp[:-32]
                         authHMAC = authResp[len(authResp)-32:]
-                        if integrity_check(authMess, authHMAC):
+                        ASMessage = authResp[:-32]
+                        if integrity_check(ASMessage, authHMAC):
                             print("AUTHENTICATION_REQUEST AUTS Integrity check successful.")
-                            nonce = authResp[:32]
-                            conn.send(package_message(nonce.decode('utf8')))
+                            conn.send(authResp)
                             print("CHALLENGE sent to ",ip , ".")
                         else:
                             print("Integrity chech failed.")
                     else: #integrity failed
-                        conn.send("AUTHENTICATION_FAILED".encode("utf-8"))
-                elif state == 'CHALLENGE_RESPONSE':
-                    print(state)
+                        conn.send(b'AF'.encode("utf-8"))
+                elif state == b'CR':
+                    print("Challenge recieved for IP: ", ip)
+                    auth_socket.send(buffer)
+                    print("Challenge sent to AS.")
                 else:
                     print("Unexpected Path!")
                     socket_list[ip][1] = False

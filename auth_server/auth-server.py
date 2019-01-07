@@ -11,6 +11,8 @@ import random
 from threading import Thread
 from binascii import hexlify
 
+import traceback
+
 gateway_ip = "127.0.0.1"
 socket_list = dict()
 MAX_BUFFER_SIZE = 4096
@@ -28,10 +30,9 @@ SERVER_PORT = ""
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 def package_message(message): 
-    digest =  HMAC.new(message.encode())
-    message = message + digest.hexdigest()
-    res = message.encode('utf8')
-    return res
+    digest =  HMAC.new(message)
+    message = message + digest.hexdigest().encode()
+    return message
 
 def integrity_check(message, hmac):
     digest = HMAC.new(message).hexdigest()
@@ -39,28 +40,12 @@ def integrity_check(message, hmac):
         return True
     else:
         return False
-    
-# def accept():
-#     while accepting:
-#         try:
-#             socket_list.append(server.accept()[0])
-#             conn=socket_list[len(socket_list)-1]
-#             buffer = conn.recv(MAX_BUFFER_SIZE)
-#             siz=sys.getsizeof(buffer)
-#             if siz >= MAX_BUFFER_SIZE:
-#                 print("The length of input is probably too long: {}".format(siz))
-#             message = buffer.decode("utf8").rstrip() # decoded to UTF-8 string
-#             Thread(target = receive, args = ()).start()
-#         except:
-#             if terminating:
-#                 accepting = false
-#             else: 
-#                 print("Listening socket stop working..")
 
 def receive(conn, ip, port):
+    nonce = None
     while socket_list[ip][1]:
         try:
-            print("Waiting for message...")
+            print("")
             buffer=conn.recv(MAX_BUFFER_SIZE)
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
@@ -68,22 +53,45 @@ def receive(conn, ip, port):
                 socket_list[ip][2] = False
             else:
                 #----------states---------#
-                state = buffer.decode('utf-8').split()[0] #get state
+                state = buffer[:2] #get state
                 print("State: ", state)
-                if state == 'AUTHENTICATION_REQUEST':
+                if state == b'AR':
                     print("Authentication Request recieved.")
                     hmac = buffer[len(buffer)-32:]
                     message = buffer[:-32]
                     if integrity_check(message, hmac):
                         print("Integrity check successful.")
                         #the request is going to be forwarded to Authentication Server expecting challenge
-                        nonce = random.getrandbits(32)
-                        conn.send(package_message("CHALLENGE " + str(nonce)))
+                        nonce = Random.new().read(16)
+                        print("Generated NONCE: ", str(nonce))
+                        conn.send(package_message(b'CR' + nonce))
                         print("CHALLENGE sent to ",ip , ".")
                     else: #integrity failed
                         conn.send("AF".encode("utf-8"))
-                elif state == 'CHALLENGE_RESPONSE':
-                    print(state)
+                elif state == b'CR':
+                    print("A challenge recieved.")
+                    hmac = buffer[len(buffer)-32:]
+                    message = buffer[:-32]
+                    if integrity_check(message, hmac):
+                        print("Integrity check successful.")
+                        iv = message[2:AES.block_size+2]
+                        print("iv zamanı ", iv)
+                        encMes = message[AES.block_size+2:-32]
+                        h = SHA256.new()
+                        h.update(CLIENT_PASSWORD.encode())
+                        hashed_password = h.hexdigest()
+                        key = hashed_password[:16]
+                        print("HP", hashed_password)
+                        cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
+                        plain_message = Padding.unpad(cipher.decrypt(encMes), 128)
+                        print("Plain ", plain_message)
+                        if nonce == plain_message:
+                            print("Authentication succesful!")
+                        else:
+                            print("Wrong password.")
+                    else: #integrity failed
+                        print("Integrity check failed!")
+                        conn.send("AF".encode("utf-8"))
                 else:
                     print("Unexpected Path!")
                     socket_list[ip][1] = False
@@ -96,68 +104,6 @@ def receive(conn, ip, port):
             conn.close()
             socket_list[ip][1] = False
     del socket_list[ip]
-
-# def receive():
-#     receiving = True
-#     conn = sockets[len(sockets)-1]
-#     while receiving:
-#         try:
-#             buffer = conn.recv(MAX_BUFFER_SIZE)
-#             siz = sys.getsizeof(buffer)
-#             if siz >= MAX_BUFFER_SIZE:
-#                 print("The length of input is probably too long: {}".format(siz))
-#             buffer = buffer.decode("utf8").rstrip()
-            
-#             # validate message digest
-#             message = buffer[:-32]
-#             digest = buffer[len(buffer)-32:]
-
-#             if HMAC.new(message.encode).hexdigest() == digest: 
-#                 command = message.split()[0] # e.g: 'AUTHENTICATIONREQUEST', 'CHALLENGERESPONSE'
-#                 if (len(message.split()) > 1):
-#                     args = message.split()[1:]
-#                 if command == 'AUTHENTICATIONREQUEST': # authentication request
-#                     if args[0] == CLIENT_MAC_ADDRESS:
-#                         # generate random 128-bit random nonce
-#                         nonce = random.getrandbits(128)
-#                         message = 'CHALLENGE ' + str(nonce) 
-#                         res = package_message(message)
-#                         conn.send(res)
-#                     else: # if client's mac address doesn't match, don't accept
-#                         message = 'NOTREGISTERED'
-#                         res = package_message(message)
-#                         conn.send(res)
-#                 elif command == 'CHALLENGERESPONSE': # challenge response
-#                     # expected message: 'CHALLENGERESPONSE E(nonce | CID, H(P))'
-#                     client_hashed_pwd = SHA256.new().update(CLIENT_PASSWORD.encode()).hexdigest()
-#                     client_cipher = AES.new(client_hashed_pwd, AES.MODE_ECB)
-
-#                     gateway_hashed_pwd = SHA256.new().update(GATEWAY_PASSWORD.encode()).hexdigest()
-#                     gateway_cipher = AES.new(gateway_hashed_pwd, AES.MOD_ECB)
-
-#                     decrypted_msg = client_cipher.decrypt(Padding.unpad(arg[1].decode(), 128))
-#                     # decyrpy unpad
-                    
-#                     if nonce == decrypted_msg:
-#                         # if message is validated, sends  E(S1 | S2 , H(P)) | E( S1 | S2 | CID, GK)
-#                         seed1 = str(random.getrandbits(128))
-#                         seed2 = str(random.getrandbits(128))
-#                         seeds = seed1 + seed2
-#                         client_message = client_cipher.encrypt(Padding.pad(seeds.encode(), 128))
-#                         gateway_message = gateway_cipher.encrypt(Padding.pad((seeds + cid).encode(), 128))
-#                         message = 'HASHCHAINSEEDS ' + client_message + gateway_message  
-#                         res = package_message(message)
-#                         conn.send(res) 
-
-#             else: # not a valid digest
-#                 message = 'INVALIDHMAC'
-#                 res = package_message(message)
-#                 conn.send(message)
-#         except: 
-#             if not terminating:
-#                 print('client has disconnected')
-#             conn.close()
-#             socket_list.remove(conn)
             
 def start():
     try:
