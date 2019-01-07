@@ -17,15 +17,17 @@ Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 
 MAX_BUFFER_SIZE = 4096
 
+def integrity_check(message, hmac):
+    digest = HMAC.new(message).hexdigest()
+    if digest.encode('utf-8') == hmac:
+        return True
+    else:
+        return False
 
-def package_message(message) -> str: 
-    '''
-    param: message 
-    '''
-    digest =  HMAC.new(message.encode())
-    message = message + str(digest.hexdigest())
-    res = message.encode('utf8')
-    return res
+def package_message(message): 
+    digest =  HMAC.new(message)
+    message = message + digest.hexdigest().encode()
+    return message
 
 
 class App(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -40,9 +42,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.connected = False
         self.terminating = False
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.password = ""
-        self.hashed_password = ''
-        self.cipher = None
+        self.key = None
         self.nonce = None
 
         # Configuration
@@ -69,41 +69,46 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.eventLogTextEdit.append(message)
 
     def connect_server(self):
+        self.connectButton.setDisabled(True) # disable connect button
+
         self.server_address = self.serverAddressLineEdit.text()
         self.server_port = int(self.portNumberLineEdit.text())
         self.client.connect((self.server_address, self.server_port))
-        
+        self.connected = True
+
         self.log('Client is connecting to gateway (' + self.server_address + ':' + str(self.server_port) +  ')...')
         print('Client is connecting to gateway(%s:%d)' % (self.server_address, self.server_port))
         
-        message = 'AUTHENTICATION_REQUEST '
-        self.log('Message sent for authentication: ' + message)
-        print('Message sent for authentication: %s' % message)
+        message = b'AR'
+        self.log('Message sent for authentication: ' + str(message))
+        print('Message sent for authentication: %s' % str(message))
         res = package_message(message)
         self.client.sendall(res)
-        self.connected = True
+        
         Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
-        password = self.passwordLineEdit.text()
-        self.log('Client password: ' + password)
+        password = self.passwordLineEdit.text().encode()
+        self.log('Client password: ' + str(password))
         h = SHA256.new()
-        h.update(password.encode())
+        h.update(password)
         hashed_password = h.hexdigest()
        
         self.key = hashed_password[:16]
         iv = Random.new().read(AES.block_size)
-        cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
-        encrypted_message = cipher.encrypt(Padding.pad(self.nonce.encode(),128))
+        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        encrypted_message = cipher.encrypt(Padding.pad(self.nonce,128))
 
         self.log('Hash of password: ' + hashed_password)
         self.log('Key: ' + self.key)
-        self.log('Nonce: ' + self.nonce)
+        self.log('Nonce: ' + str(self.nonce))
 
-        encrypted_message = iv + encrypted_message
-        message = 'CHALLENGE_RESPONSE ' + str(encrypted_message)
+        message = b'CR' + iv + encrypted_message
         res = package_message(message)
         self.client.sendall(res)
+        
+        self.enterButton.setDisabled(True)
+        self.passwordLineEdit.setDisabled(True)
         
         # buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
         # message = buffer[:-32]
@@ -117,6 +122,8 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         res = package.message(message)
         self.client.sendall(res)
         self.client.close() 
+        self.connectButton.setEnabled(True)
+        self.disconnectButton.setDisabled(True)
 
     def get_ip():
         from requests import get
@@ -135,19 +142,18 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def receive(self):
         try:
             while self.connected:
-                buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
+                buffer = self.client.recv(MAX_BUFFER_SIZE)
                 message = buffer[:-32]
-                print('Message %s' % message)
+                print('Message received: %s' % message)
                 digest = buffer[len(buffer)-32:]
-                if HMAC.new(message.encode()).hexdigest() == digest: # a valid digest
-                    command = message.split()[0] # e.g: 'CHALLENGE'
-                    if (len(message.split()) > 1):
-                        args = message.split()[1:]
-                    if command == 'CHALLENGE':
-                        self.nonce = args[0]      
+                state = buffer[:2]
+                if integrity_check(message, digest): # a valid digest
+                    if state == b'CR':
+                        self.nonce = message[2:]     
                         print('Please enter your password and press Enter button')
                         self.enterButton.setEnabled(True)
-                    elif command == 'GENERATE_HASHCHAINS': # e.g 'GENERATE_HASHCHAINS iv as68d56 iv af5fdb'
+
+                    elif state == b'GH': # e.g 'GH iv as68d56 iv af5fdb'
                         iv = args[0]
                         encrypted_seeds = args[1]
                         cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
