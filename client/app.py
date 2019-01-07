@@ -10,6 +10,8 @@ from threading import Thread
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
 
+from hash_chain import hash_chain
+
 qtCreatorFile = "mainwindow.ui"
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 
@@ -82,7 +84,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
         encrypted_message = cipher.encrypt(Padding.pad(self.nonce.encode(),128))
-        encrypted_message = iv + encrypted_message
+        encrypted_message = iv + ' ' + encrypted_message
         message = 'CHALLENGE_RESPONSE ' + str(encrypted_message)
         res = package_message(message)
         self.client.sendall(res)
@@ -129,8 +131,15 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         self.nonce = args[0]      
                         print('Please enter your password and press Enter button')
                         self.enterButton.setEnabled(True)
-                    elif command == 'GENERATE_HASHCHAINS':
-                        pass
+                    elif command == 'GENERATE_HASHCHAINS': # e.g 'GENERATE_HASHCHAINS iv as68d56 iv af5fdb'
+                        iv = args[0]
+                        encrypted_seeds = args[1]
+                        cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
+                        decrypted_message = Padding.pad(cipher.decrypt(self.key.encode()), 128)
+                        seeds = decrypted_message.split()
+                        self.hc = hash_chain(100, seeds[0], seeds[1])
+
+
         except:
             import traceback
             traceback.print_exc()
