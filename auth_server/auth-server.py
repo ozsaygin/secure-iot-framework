@@ -76,14 +76,16 @@ def receive(conn, ip, port):
                         print("Integrity check successful.")
                         iv = message[2:AES.block_size+2]
                         print("iv zamanı ", iv)
-                        encMes = message[AES.block_size+2:-32]
+                        encMes = message[AES.block_size+2:]
                         h = SHA256.new()
                         h.update(CLIENT_PASSWORD.encode())
                         hashed_password = h.hexdigest()
                         key = hashed_password[:16]
                         print("HP", hashed_password)
                         cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                        plain_message = Padding.unpad(cipher.decrypt(encMes), 128)
+                        temp = cipher.decrypt(encMes)
+                        print(temp)
+                        plain_message = Padding.unpad(temp, 128, style='iso7816')
                         print("Plain ", plain_message)
                         if nonce == plain_message:
                             print("Authentication succesful!")
