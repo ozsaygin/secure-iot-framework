@@ -71,10 +71,11 @@ def receive(conn, ip, port):
                 state = buffer.decode('utf-8').split()[0] #get state
                 print("State: ", state)
                 if state == 'AUTHENTICATION_REQUEST':
+                    print("Authentication Request recieved.")
                     hmac = buffer[len(buffer)-32:]
                     message = buffer[:-32]
-                    print("Message: ", message)
                     if integrity_check(message, hmac):
+                        print("Integrity check successful.")
                         #the request is going to be forwarded to Authentication Server expecting challenge
                         nonce = random.getrandbits(32)
                         conn.send(package_message("CHALLENGE " + str(nonce)))

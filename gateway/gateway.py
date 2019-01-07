@@ -14,7 +14,7 @@ listening = False
 terminating = False
 
 HOST="127.0.0.1"
-PORT=12345
+PORT = 12346
 SERVER_PORT = ""
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,7 +47,6 @@ def package_message(message):
 
 def integrity_check(message, hmac):
     digest = HMAC.new(message).hexdigest()
-    print(digest, hmac)
     if digest.encode('utf-8') == hmac:
         return True
     else:
@@ -66,16 +65,19 @@ def receive(conn, ip, port):
                 state = buffer.decode('utf-8').split()[0] #get state
                 print("State: ", state)
                 if state == 'AUTHENTICATION_REQUEST':
+                    print("Authentication Request recieved.")
                     hmac = buffer[len(buffer)-32:]
                     message = buffer[:-32]
                     print("Message: ", message)
                     if integrity_check(message, hmac):
+                        print("AUTHENTICATION_REQUEST Integrity check successful.")
                         #get challenge from auth server
                         auth_socket.send(package_message("AUTHENTICATION_REQUEST " + ip))
                         authResp = auth_socket.recv(MAX_BUFFER_SIZE)
                         authMess = authResp[:-32]
                         authHMAC = authResp[len(authResp)-32:]
                         if integrity_check(authMess, authHMAC):
+                            print("AUTHENTICATION_REQUEST AUTS Integrity check successful.")
                             nonce = authResp[:32]
                             conn.send(package_message(nonce.decode('utf8')))
                             print("CHALLENGE sent to ",ip , ".")
