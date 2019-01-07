@@ -138,8 +138,6 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         decrypted_message = Padding.pad(cipher.decrypt(self.key.encode()), 128)
                         seeds = decrypted_message.split()
                         self.hc = hash_chain(100, seeds[0], seeds[1])
-
-
         except:
             import traceback
             traceback.print_exc()
