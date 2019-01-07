@@ -65,11 +65,20 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
             event.ignore
 
 
+    def log(self, message):
+        self.eventLogTextEdit.append(message)
+
     def connect_server(self):
         self.server_address = self.serverAddressLineEdit.text()
         self.server_port = int(self.portNumberLineEdit.text())
         self.client.connect((self.server_address, self.server_port))
+        
+        self.log('Client is connecting to gateway (' + self.server_address + ':' + str(self.server_port) +  ')...')
+        print('Client is connecting to gateway(%s:%d)' % (self.server_address, self.server_port))
+        
         message = 'AUTHENTICATION_REQUEST '
+        self.log('Message sent for authentication: ' + message)
+        print('Message sent for authentication: %s' % message)
         res = package_message(message)
         self.client.sendall(res)
         self.connected = True
@@ -77,14 +86,21 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def enter_password(self):
         password = self.passwordLineEdit.text()
+        self.log('Client password: ' + password)
         h = SHA256.new()
         h.update(password.encode())
         hashed_password = h.hexdigest()
+       
         self.key = hashed_password[:16]
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
         encrypted_message = cipher.encrypt(Padding.pad(self.nonce.encode(),128))
-        encrypted_message = iv + ' ' + encrypted_message
+
+        self.log('Hash of password: ' + hashed_password)
+        self.log('Key: ' + self.key)
+        self.log('Nonce: ' + self.nonce)
+
+        encrypted_message = iv + encrypted_message
         message = 'CHALLENGE_RESPONSE ' + str(encrypted_message)
         res = package_message(message)
         self.client.sendall(res)
