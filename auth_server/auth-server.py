@@ -30,7 +30,7 @@ SERVER_PORT = ""
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 def encryptAES(mess, key):
-    raw = Padding.pad(mess, 128)
+    raw = Padding.pad(mess, 128, style='iso7816')
     iv = Random.new().read(AES.block_size)
     cipher = AES.new(key, AES.MODE_CBC, iv)
     return iv + cipher.encrypt(raw)
@@ -97,19 +97,15 @@ def receive(conn, ip, port):
                             s1 = Random.new().read(AES.block_size)
                             s2 = Random.new().read(AES.block_size)
                             encryptedSeeds = encryptAES(s1 + s2, key.encode())
-                            
-                            message = b'GH' + encryptedSeeds
-
+                            conn.send(package_message(encryptedSeeds))
                             # gateway packet
                             h = SHA256.new()
                             h.update(GATEWAY_KEY.encode())
                             hashed_password = h.hexdigest()
                             key = hashed_password[:16]
-                            encryptedSeeds = encryptAES(s1 + s2, key.encode())
-
-                            message += encryptedSeeds  
-                     
-                            conn.send(package_message(message))
+                            encryptedSeeds = encryptAES(s1 + s2, key.encode()) 
+                            conn.send(package_message(encryptedSeeds))
+                            print("Seeds p, q sent to Gateway.")
                         else:
                             print("Wrong password.")
                     else: #integrity failed

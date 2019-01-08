@@ -6,8 +6,8 @@ class hash_chain:
     def __init__(self, length, seedP, seedQ):
         self.chainLength = length
         self.indexLoc = -1
-        self.hash_chain_p = [bytes(seedP, 'utf-8')] * length
-        self.hash_chain_q = [bytes(seedQ, 'utf-8')] * length
+        self.hash_chain_p = [seedP] * length
+        self.hash_chain_q = [seedQ] * length
 
         print("Generating hash chains length: ", length, "with seeds p: ", seedP, " q: ", seedQ)
         for i in range (0, length-1):

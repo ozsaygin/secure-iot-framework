@@ -6,8 +6,8 @@ from Crypto.Util import Padding
 
 class symmtrc_cypr:
 
-    def __init__(self):
-        self.HC = hc.hash_chain(11, "tobe", "akim")
+    def __init__(self, p, q):
+        self.HC = hc.hash_chain(11, p, q)
         self.key = self.HC.generate_key()[:16]
    
     def reKey(self):
