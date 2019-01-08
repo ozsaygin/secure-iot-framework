@@ -44,6 +44,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.key = None
         self.nonce = None
+        self.gateway_key = None
 
         # Configuration
         self.enterButton.setDisabled(True)
@@ -154,12 +155,15 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         self.enterButton.setEnabled(True)
 
                     elif state == b'GH': # e.g 'GH iv as68d56 iv af5fdb'
-                        iv = args[0]
-                        encrypted_seeds = args[1]
+                        iv = message[2:AES.block_size+2]
+                        encrypted_seeds = message[AES.block_size+2:]
                         cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
-                        decrypted_message = Padding.pad(cipher.decrypt(self.key.encode()), 128)
-                        seeds = decrypted_message.split()
-                        self.hc = hash_chain(100, seeds[0], seeds[1])
+                        decrypted_seeds = Padding.pad(cipher.decrypt(encrypted_seeds), 128)
+                        seed1 = decrypted_seed[:16]
+                        seed2 = decrypted_seed[16:]
+                        self.hc = hash_chain(100, seed1, seed2)
+                    
+
         except:
             import traceback
             traceback.print_exc()
