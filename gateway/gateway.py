@@ -52,6 +52,7 @@ def receive(conn, ip, port):
             else:
                 #----------states---------#
                 state = buffer[:2] #get state
+                print("")
                 print("State: ", state)
                 if state == b'AR':
                     print("Authentication Request recieved.")
