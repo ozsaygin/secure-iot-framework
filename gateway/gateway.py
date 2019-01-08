@@ -83,7 +83,7 @@ def receive(conn, ip, port):
                     if integrity_check(ASMessage, authHMAC):
                         print("CHALLENGE_RESPONSE AS Integrity check successful.")
                         if authResp[:2] != b'AF':
-                            conn.send(b'GH' + authRespC)
+                            conn.send(package_message(b'GH' + ASMessage))
                             authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
                             if integrity_check(authRespG[:-32], authRespG[len(authRespC)-32:]):
                                 iv = authRespG[:AES.block_size]
