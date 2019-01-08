@@ -98,7 +98,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.key = hashed_password[:16]
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        encrypted_message = cipher.encrypt(Padding.pad(self.nonce,128))
+        encrypted_message = cipher.encrypt(Padding.pad(self.nonce,128, style='iso7816'))
 
         self.log('Hash of password: ' + hashed_password)
         self.log('Key: ' + self.key)
@@ -158,10 +158,13 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         iv = message[2:AES.block_size+2]
                         encrypted_seeds = message[AES.block_size+2:]
                         cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
-                        decrypted_seeds = Padding.pad(cipher.decrypt(encrypted_seeds), 128)
-                        seed1 = decrypted_seed[:16]
-                        seed2 = decrypted_seed[16:]
+                        decrypted_seeds = Padding.unpad(cipher.decrypt(encrypted_seeds), 128, style='iso7816')
+                        seed1 = decrypted_seeds[:16]
+                        seed2 = decrypted_seeds[16:]
+                        print('seed 1: ' + str(seed1))
+                        print('seed 2: ' + str(seed2))
                         self.hc = hash_chain(100, seed1, seed2)
+                        print('Hash chains are generated succesfully...')
                     
 
         except:

@@ -6,12 +6,16 @@ import sys
 from threading import Thread
 from binascii import hexlify
 import traceback
-
+from hash_chain import hash_chain
 gateway_ip = "127.0.0.1"
 socket_list = dict()
 MAX_BUFFER_SIZE = 4096
 listening = False
 terminating = False
+
+hc = None
+
+GATEWAY_KEY = "prettysecuregatewaykey12345"
 
 HOST="127.0.0.1"
 PORT = 11114
@@ -82,6 +86,25 @@ def receive(conn, ip, port):
                     else:
                         print("Integrity chech failed.")
                     print("Challenge sent to AS.")
+                elif state == b'GH':
+                    message = buffer[:-32]
+                    gateway_msg = message[-32:]
+                    iv = gateway_msg[:16]
+                    enc_seeds = gateway_msg[16:]
+
+                    h = SHA256.new()
+                    h.update(GATEWAY_KEY.encode())
+                    hashed_password = h.hexdigest()
+                    key = hashed_password[:16]
+                    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
+                    plain = Padding.unpad(client_cipher.decrypt(encMes), 128, style='iso7816')
+                    seed1 = plain[:16]
+                    seed2 = plain[16:]
+                    global hc
+                    
+                    hc = hash_chain(100, seed1, seed2) 
+                    print('Hash chains are succesfully generated...')
+                    conn.sendall(package_message(buffer[:34]))
                 else:
                     print("Unexpected Path!")
                     socket_list[ip][1] = False

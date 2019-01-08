@@ -19,14 +19,11 @@ connected = False
 listening = False
 
 
-def package_message(message) -> str: 
-    '''
-    param: message 
-    '''
-    digest =  HMAC.new(message.encode())
-    message = message + str(digest.hexdigest())
-    res = message.encode('utf8')
-    return res
+def package_message(message): 
+    digest =  HMAC.new(message)
+    message = message + digest.hexdigest().encode()
+    return message
+
 
 def start():
     try:
@@ -47,6 +44,7 @@ def start():
 def receive():
     key = None
     hc = None
+
     try:
         while True:
             buffer = iot.recv(MAX_BUFFER_SIZE).decode('utf8')
@@ -57,31 +55,37 @@ def receive():
                 command = message.split()[0] # e.g: 'CHALLENGE'
                 if (len(message.split()) > 1):
                     args = message.split()[1:]
-                if command == 'CHALLENGE':
-                    # keygen
-                    nonce = args[0]      
-                    password = input('Please enter your password: ')
+                if command == 'CR':
+                    nonce = message[2:]     
+                    password = input('Please enter your password and press Enter button')
                     h = SHA256.new()
-                    h.update(password.encode())
+                    h.update(password)
                     hashed_password = h.hexdigest()
+                
                     key = hashed_password[:16]
-
-                    # encryption
                     iv = Random.new().read(AES.block_size)
-                    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                    encrypted_message = cipher.encrypt(Padding.pad(nonce.encode(),128))
-                    encrypted_message = str(iv) + ' ' + str(encrypted_message)
-                    message = 'CHALLENGE_RESPONSE ' + encrypted_message
+                    cipher = AES.new(key, AES.MODE_CBC, iv)
+                    encrypted_message = cipher.encrypt(Padding.pad(nonce,128, style='iso7816'))
+
+                    print('Hash of password: ' + hashed_password)
+                    print('Key: ' + key)
+                    print('Nonce: ' + str(nonce))
+
+                    message = b'CR' + iv + encrypted_message
                     res = package_message(message)
                     iot.sendall(res)
 
-                elif command == 'GENERATE_HASHCHAINS':
-                    iv = args[0]
-                    encrypted_seeds = args[1]
+                elif command == 'GH':
+                    iv = message[2:AES.block_size+2]
+                    encrypted_seeds = message[AES.block_size+2:]
                     cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                    decrypted_message = Padding.pad(cipher.decrypt(key.encode()), 128)
-                    seeds = decrypted_message.split()
-                    hc = hash_chain(100, seeds[0], seeds[1])
+                    decrypted_seeds = Padding.pad(cipher.decrypt(encrypted_seeds), 128, style='iso7816')
+                    seed1 = decrypted_seed[:16]
+                    seed2 = decrypted_seed[16:]
+                    print('seed 1: ' + str(seed1))
+                    print('seed 2: ' + str(seed2))
+                    hc = hash_chain(100, seed1, seed2)
+                    print('Hash chains are generated succesfully...')
 
                 
                 

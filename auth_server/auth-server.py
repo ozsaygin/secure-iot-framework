@@ -87,15 +87,29 @@ def receive(conn, ip, port):
                         h.update(CLIENT_PASSWORD.encode())
                         hashed_password = h.hexdigest()
                         key = hashed_password[:16]
-                        cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                        plain_message = Padding.unpad(cipher.decrypt(encMes), 128, style='iso7816')
+                        client_cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
+                        plain_message = Padding.unpad(client_cipher.decrypt(encMes), 128, style='iso7816')
                         print("Plain ", plain_message)
                         if nonce == plain_message:
                             print("Authentication succesful!")
+                            # AS —> G: E(S1 | S2 , H(P)) | E( S1 | S2 | CID, GK)
+                            # client packet
                             s1 = Random.new().read(AES.block_size)
                             s2 = Random.new().read(AES.block_size)
                             encryptedSeeds = encryptAES(s1 + s2, key.encode())
-                            conn.send(package_message(encryptedSeeds))
+                            
+                            message = b'GH' + encryptedSeeds
+
+                            # gateway packet
+                            h = SHA256.new()
+                            h.update(GATEWAY_KEY.encode())
+                            hashed_password = h.hexdigest()
+                            key = hashed_password[:16]
+                            encryptedSeeds = encryptAES(s1 + s2, key.encode())
+
+                            message += encryptedSeeds  
+                     
+                            conn.send(package_message(message))
                         else:
                             print("Wrong password.")
                     else: #integrity failed
