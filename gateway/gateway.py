@@ -14,31 +14,12 @@ listening = False
 terminating = False
 
 HOST="127.0.0.1"
-PORT = 11115
+PORT = 11114
 SERVER_PORT = ""
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 auth_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# def accept():
-#     accepting = True
-#     while accepting:
-#         try:
-#             con, addr = server.accept()
-#             socket_list.append(server.accept()[0])
-#             conn=socket_list[len(socket_list)-1]
-#             buffer = conn.recv(MAX_BUFFER_SIZE)
-#             siz=sys.getsizeof(buffer)
-#             if siz >= MAX_BUFFER_SIZE:
-#                 print("The length of input is probably too long: {}".format(siz))
-#             message = buffer.decode("utf8").rstrip() # decoded to UTF-8 string
-#             Thread(target = receive, args = ()).start()
-#         except:
-#             accepting = False
-#             import traceback
-#             traceback.print_exc()
-#             print("Listening socket stop working..")
 def package_message(message): 
     digest =  HMAC.new(message)
     message = message + digest.hexdigest().encode()
@@ -77,7 +58,7 @@ def receive(conn, ip, port):
                         authHMAC = authResp[len(authResp)-32:]
                         ASMessage = authResp[:-32]
                         if integrity_check(ASMessage, authHMAC):
-                            print("AUTHENTICATION_REQUEST AUTS Integrity check successful.")
+                            print("AUTHENTICATION_REQUEST AS Integrity check successful.")
                             conn.send(authResp)
                             print("CHALLENGE sent to ",ip , ".")
                         else:
@@ -85,8 +66,21 @@ def receive(conn, ip, port):
                     else: #integrity failed
                         conn.send(b'AF'.encode("utf-8"))
                 elif state == b'CR':
-                    print("Challenge recieved for IP: ", ip)
+                    print("Challenge response recieved for IP: ", ip)
                     auth_socket.send(buffer)
+                    authRespC = auth_socket.recv(MAX_BUFFER_SIZE)
+                    authHMAC = authRespC[len(authRespC)-32:]
+                    ASMessage = authRespC[:-32]
+                    if integrity_check(ASMessage, authHMAC):
+                        print("CHALLENGE_RESPONSE AS Integrity check successful.")
+                        if authResp[:2] != b'AF':
+                            conn.send(authRespC)
+                            authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
+                        else:
+                            conn.send(package_message(b'AF'))
+                        print("CHALLENGE sent to ",ip , ".")
+                    else:
+                        print("Integrity chech failed.")
                     print("Challenge sent to AS.")
                 else:
                     print("Unexpected Path!")
@@ -117,7 +111,7 @@ def start():
                 conn, addr = server.accept()
                 ip, port = str(addr[0]), str(addr[1])
                 print('Accepting connection from ' + ip + ':' + port)
-                socket_list[ip] = [conn, True]
+                socket_list[ip] = [conn, True, None]
                 try:
                     Thread(target=receive, args=(conn, ip, port)).start()
                 except:

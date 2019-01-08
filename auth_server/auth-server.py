@@ -29,6 +29,12 @@ SERVER_PORT = ""
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+def encryptAES(mess, key):
+    raw = Padding.pad(mess, 128)
+    iv = Random.new().read(AES.block_size)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    return iv + cipher.encrypt(raw)
+
 def package_message(message): 
     digest =  HMAC.new(message)
     message = message + digest.hexdigest().encode()
@@ -81,14 +87,15 @@ def receive(conn, ip, port):
                         h.update(CLIENT_PASSWORD.encode())
                         hashed_password = h.hexdigest()
                         key = hashed_password[:16]
-                        print("HP", hashed_password)
                         cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                        temp = cipher.decrypt(encMes)
-                        print(temp)
-                        plain_message = Padding.unpad(temp, 128, style='iso7816')
+                        plain_message = Padding.unpad(cipher.decrypt(encMes), 128, style='iso7816')
                         print("Plain ", plain_message)
                         if nonce == plain_message:
                             print("Authentication succesful!")
+                            s1 = Random.new().read(AES.block_size)
+                            s2 = Random.new().read(AES.block_size)
+                            encryptedSeeds = encryptAES(s1 + s2, key.encode())
+                            conn.send(package_message(encryptedSeeds))
                         else:
                             print("Wrong password.")
                     else: #integrity failed
