@@ -87,6 +87,8 @@ def receive():
                     hc = hash_chain(100, seed1, seed2)
                     print('Hash chains are generated succesfully...')
 
+                    
+
                 
                 
     except:

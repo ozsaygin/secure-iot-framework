@@ -6,6 +6,7 @@ from Crypto.Cipher import AES
 from Crypto.Util import Padding
 from Crypto import Random
 from threading import Thread
+from symmetric_cyphr import symmtrc_cypr
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
@@ -45,6 +46,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.key = None
         self.nonce = None
         self.gateway_key = None
+        self.sc = None
 
         # Configuration
         self.enterButton.setDisabled(True)
@@ -72,8 +74,12 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def connect_server(self):
         self.connectButton.setDisabled(True) # disable connect button
 
-        self.server_address = self.serverAddressLineEdit.text()
-        self.server_port = int(self.portNumberLineEdit.text())
+        # self.server_address = self.serverAddressLineEdit.text()
+        # self.server_port = int(self.portNumberLineEdit.text())
+
+        self.server_address = '127.0.0.1'
+        self.server_port = 11114
+
         self.client.connect((self.server_address, self.server_port))
         self.connected = True
 
@@ -89,7 +95,9 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
-        password = self.passwordLineEdit.text().encode()
+        # password = self.passwordLineEdit.text().encode()
+        password = 'su12345'.encode()
+
         self.log('Client password: ' + str(password))
         h = SHA256.new()
         h.update(password)
@@ -145,7 +153,8 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
             while self.connected:
                 buffer = self.client.recv(MAX_BUFFER_SIZE)
                 message = buffer[:-32]
-                print('Message received: %s' % message)
+                if len(message) > 0:
+                    print('Message received: %s' % message)
                 digest = buffer[len(buffer)-32:]
                 state = buffer[:2]
                 if integrity_check(message, digest): # a valid digest
@@ -155,16 +164,18 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         self.enterButton.setEnabled(True)
 
                     elif state == b'GH': # e.g 'GH iv as68d56 iv af5fdb'
-                        iv = message[2:AES.block_size+2]
-                        encrypted_seeds = message[AES.block_size+2:]
+                        message = message[2:]
+                        iv = message[:AES.block_size]
+                        print('iv', iv)
+                        encrypted_seeds = message[AES.block_size:]
                         cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
-                        decrypted_seeds = Padding.unpad(cipher.decrypt(encrypted_seeds), 128, style='iso7816')
-                        seed1 = decrypted_seeds[:16]
-                        seed2 = decrypted_seeds[16:]
-                        print('seed 1: ' + str(seed1))
-                        print('seed 2: ' + str(seed2))
-                        self.hc = hash_chain(100, seed1, seed2)
+                        seeds = cipher.decrypt(encrypted_seeds)
+                        print('seed 1: ' + str(seeds[AES.block_size:2*AES.block_size]))
+                        print('seed 2: ' + str(seeds[:AES.block_size]))
+                        self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                         print('Hash chains are generated succesfully...')
+                        print(self.sc.encrypt('wireles'))
+
                     
 
         except:
