@@ -29,13 +29,30 @@ SERVER_PORT = ""
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 auth_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-def package_message(message): 
-    digest =  HMAC.new(message)
+def decryptAES(key, mess):
+    iv = mess[:AES.block_size]
+    encs =  mess[AES.block_size:]
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16]
+    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
+    return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
+
+
+def package_message(key, message): 
+    digest =  HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
     return message
 
-def integrity_check(message, hmac):
-    digest = HMAC.new(message).hexdigest()
+def integrity_check(key, message):
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode()
+    hmac = message[len(message)-32:]
+    message = message[:-32]
+    digest = HMAC.new(key, message).hexdigest()
     if digest.encode('utf-8') == hmac:
         return True
     else:
@@ -44,6 +61,7 @@ def integrity_check(message, hmac):
 def receive(conn, ip, port):
     while socket_list[ip][1]:
         try:
+            print("")
             buffer=conn.recv(MAX_BUFFER_SIZE)
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
@@ -55,70 +73,36 @@ def receive(conn, ip, port):
                 print("State: ", state)
                 if state == b'AR':
                     print("Authentication Request recieved.")
-                    hmac = buffer[len(buffer)-32:]
-                    message = buffer[:-32]
-                    print("Message: ", message)
-                    if integrity_check(message, hmac):
-                        print("AUTHENTICATION_REQUEST Integrity check successful.")
-                        #get challenge from auth server
-                        print("Requesting challenge from AS.")
-                        auth_socket.send(package_message(b'AR ' + ip.encode()))
-                        authResp = auth_socket.recv(MAX_BUFFER_SIZE)
-                        authHMAC = authResp[len(authResp)-32:]
-                        ASMessage = authResp[:-32]
-                        if integrity_check(ASMessage, authHMAC):
-                            print("AUTHENTICATION_REQUEST AS Integrity check successful.")
-                            conn.send(authResp)
-                            print("CHALLENGE sent to ",ip , ".")
-                        else:
-                            print("Integrity chech failed.")
-                    else: #integrity failed
-                        conn.send(b'AF'.encode("utf-8"))
+                    #get challenge from auth server
+                    print("Requesting challenge from AS.")
+                    auth_socket.send(b'AR ' + ip.encode())
+                    nonce = auth_socket.recv(MAX_BUFFER_SIZE)
+                    conn.send(nonce)
+                    print("CHALLENGE sent to ",ip , ".")
                 elif state == b'CR':
                     print("Challenge response recieved for IP: ", ip)
+                    print("Forwarding challenge to AS.")
                     auth_socket.send(buffer)
                     authRespC = auth_socket.recv(MAX_BUFFER_SIZE)
-                    authHMAC = authRespC[len(authRespC)-32:]
-                    ASMessage = authRespC[:-32]
-                    if integrity_check(ASMessage, authHMAC):
+                    if integrity_check(GATEWAY_KEY, authRespC):
                         print("CHALLENGE_RESPONSE AS Integrity check successful.")
-                        if authResp[:2] != b'AF':
-                            conn.send(b'GH' + authRespC)
+                        if authRespC[:2] != b'AF':
+                            conn.send(b'GH' + authRespC[:-32])
                             authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
-                            if integrity_check(authRespG[:-32], authRespG[len(authRespC)-32:]):
-                                iv = authRespG[:AES.block_size]
-                                encseeds =  authRespG[AES.block_size:-32]
-                                h = SHA256.new()
-                                h.update(GATEWAY_KEY.encode())
-                                hashed_password = h.hexdigest()
-                                key = hashed_password[:16]
-                                cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                                seeds = Padding.unpad(cipher.decrypt(encseeds), 128, style='iso7816')
+                            if integrity_check(GATEWAY_KEY, authRespG):
+                                seeds = decryptAES(GATEWAY_KEY, authRespG[:-32])
                                 SC = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                                 socket_list[ip][2] = SC
                         else:
-                            conn.send(package_message(b'AF'))
+                            conn.send(b'AF')
+                elif state == b'UR':
+                    print("Authorization Request recieved.")
+                    if integrity_check(socket_list[ip][3].getKey(), buffer):
+                        print("Integrity check is successful.")
+                        #send auth successful message
                     else:
-                        print("Integrity chech failed.")
-                # elif state == b'GH':
-                #     message = buffer[:-32]
-                #     gateway_msg = message[-32:]
-                #     iv = gateway_msg[:16]
-                #     enc_seeds = gateway_msg[16:]
-
-                #     h = SHA256.new()
-                #     h.update(GATEWAY_KEY.encode())
-                #     hashed_password = h.hexdigest()
-                #     key = hashed_password[:16]
-                #     cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                #     plain = Padding.unpad(client_cipher.decrypt(encMes), 128, style='iso7816')
-                #     seed1 = plain[:16]
-                #     seed2 = plain[16:]
-                #     global hc
-                    
-                #     hc = hash_chain(100, seed1, seed2) 
-                #     print('Hash chains are succesfully generated...')
-                #     conn.sendall(package_message(buffer[:34]))
+                        print("Integrity check failed.")
+                        #send no auth
                 else:
                     print("Unexpected Path!")
                     socket_list[ip][1] = False
