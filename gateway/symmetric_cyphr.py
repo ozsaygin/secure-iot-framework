@@ -15,6 +15,8 @@ class symmtrc_cypr:
         if self.key == None:
             print("Hash Chain finished. Auth required!")
             #
+    def getKey(self):
+        return self.key
 
     def encrypt(self, mess):
         raw = Padding.pad(mess.encode(), 128)

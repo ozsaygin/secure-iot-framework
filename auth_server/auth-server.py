@@ -30,13 +30,31 @@ SERVER_PORT = ""
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 def encryptAES(mess, key):
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode()
     raw = Padding.pad(mess, 128, style='iso7816')
     iv = Random.new().read(AES.block_size)
     cipher = AES.new(key, AES.MODE_CBC, iv)
     return iv + cipher.encrypt(raw)
 
-def package_message(message): 
-    digest =  HMAC.new(message)
+def decryptAES(key, mess):
+    iv = mess[:AES.block_size]
+    encs =  mess[AES.block_size:]
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16]
+    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
+    return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
+
+def package_message(key, message):
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode() 
+    digest =  HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
     return message
 
@@ -63,54 +81,26 @@ def receive(conn, ip, port):
                 print("State: ", state)
                 if state == b'AR':
                     print("Authentication Request recieved.")
-                    hmac = buffer[len(buffer)-32:]
-                    message = buffer[:-32]
-                    if integrity_check(message, hmac):
-                        print("Integrity check successful.")
-                        #the request is going to be forwarded to Authentication Server expecting challenge
-                        nonce = Random.new().read(16)
-                        print("Generated NONCE: ", str(nonce))
-                        conn.send(package_message(b'CR' + nonce))
-                        print("CHALLENGE sent to ",ip , ".")
-                    else: #integrity failed
-                        conn.send("AF".encode("utf-8"))
+                    nonce = Random.new().read(16)
+                    print("Generated NONCE: ", str(nonce))
+                    conn.send(b'CR' + nonce)
+                    print("CHALLENGE sent to ",ip , ".")
                 elif state == b'CR':
                     print("A challenge recieved.")
-                    hmac = buffer[len(buffer)-32:]
-                    message = buffer[:-32]
-                    if integrity_check(message, hmac):
-                        print("Integrity check successful.")
-                        iv = message[2:AES.block_size+2]
-                        print("iv zamanı ", iv)
-                        encMes = message[AES.block_size+2:]
-                        h = SHA256.new()
-                        h.update(CLIENT_PASSWORD.encode())
-                        hashed_password = h.hexdigest()
-                        key = hashed_password[:16]
-                        client_cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                        plain_message = Padding.unpad(client_cipher.decrypt(encMes), 128, style='iso7816')
-                        print("Plain ", plain_message)
-                        if nonce == plain_message:
-                            print("Authentication succesful!")
-                            # AS —> G: E(S1 | S2 , H(P)) | E( S1 | S2 | CID, GK)
-                            # client packet
-                            s1 = Random.new().read(AES.block_size)
-                            s2 = Random.new().read(AES.block_size)
-                            encryptedSeeds = encryptAES(s1 + s2, key.encode())
-                            conn.send(package_message(encryptedSeeds))
-                            # gateway packet
-                            h = SHA256.new()
-                            h.update(GATEWAY_KEY.encode())
-                            hashed_password = h.hexdigest()
-                            key = hashed_password[:16]
-                            encryptedSeeds = encryptAES(s1 + s2, key.encode()) 
-                            conn.send(package_message(encryptedSeeds))
-                            print("Seeds p, q sent to Gateway.")
-                        else:
-                            print("Wrong password.")
-                    else: #integrity failed
-                        print("Integrity check failed!")
-                        conn.send("AF".encode("utf-8"))
+                    plain_message = decryptAES(CLIENT_PASSWORD, buffer[2:])
+                    if nonce == plain_message:
+                        print("Authentication succesful!")
+                        # client packet
+                        s1 = Random.new().read(AES.block_size)
+                        s2 = Random.new().read(AES.block_size)
+                        encryptedSeeds = encryptAES(s1 + s2, GATEWAY_KEY)
+                        conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
+                        # gateway packet
+                        encryptedSeeds = encryptAES(s1 + s2, GATEWAY_KEY) 
+                        conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
+                        print("Seeds p, q sent to Gateway.")
+                    else:
+                        print("Wrong password.")
                 else:
                     print("Unexpected Path!")
                     socket_list[ip][1] = False
