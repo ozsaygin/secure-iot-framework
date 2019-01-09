@@ -14,6 +14,9 @@ class symmtrc_cypr:
         self.key = self.HC.generate_key()
         if self.key == None:
             print("Hash Chain finished. Auth required!")
+            return False
+        else:
+            return True
 
     def getKey(self):
         return self.key

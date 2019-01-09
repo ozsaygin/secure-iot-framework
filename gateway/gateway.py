@@ -14,6 +14,7 @@ from symmetric_cyphr import symmtrc_cypr
 
 gateway_ip = "127.0.0.1"
 socket_list = dict()
+auth_list = dict()
 MAX_BUFFER_SIZE = 4096
 listening = False
 terminating = False
@@ -104,6 +105,7 @@ def receive(conn, ip, port):
                     if integrity_check(GATEWAY_KEY, authRespC):
                         print("CHALLENGE_RESPONSE AS Integrity check successful.")
                         if authRespC[:2] != b'AF':
+                            socket_list[ip][3] = True
                             conn.send(b'GH' + authRespC[:-32])
                             authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
                             if integrity_check(GATEWAY_KEY, authRespG):
@@ -112,12 +114,13 @@ def receive(conn, ip, port):
                                 socket_list[ip][2] = SC
                         else:
                             conn.send(b'AF')
-                elif state == b'UR':
+                elif state == b'UR' and socket_list[ip][3]:
                     print("Authorization Request recieved.")
                     cypr = socket_list[ip][2]
                     if integrity_check(cypr.getKey(), buffer):
                         print("Integrity check is successful.")
-                        req = cypr.decrypt(buffer[2:-32]) + ip.encode()
+                        iotid = cypr.decrypt(buffer[2:-32])
+                        req = iotid + ip.encode()
                         encreq = encryptAES(req, GATEWAY_KEY)
                         auth_socket.send(package_message(GATEWAY_KEY, b'UR' + encreq))
                         resp = auth_socket.recv(MAX_BUFFER_SIZE)
@@ -126,19 +129,24 @@ def receive(conn, ip, port):
                             resp = decryptAES(GATEWAY_KEY, resp[:-32])
                             if resp == b'AG':
                                 print("Authorization granted!")
-                                #grant auth in some way
+                                auth_list[ip].append(iotid.decode('utf8'))
                             else:
                                 print('Authorization failed.') 
                             encresp = cypr.encrypt(resp)
                             conn.send(package_message(cypr.getKey(), encresp))
                     else:
                         print("Integrity check failed.")
-                        conn.send(b'AF')
-                        #send no auth
+                        conn.send(b'FA')
                 else:
-                    print("Unexpected Path!")
+                    print("Needs authorization.")
                     socket_list[ip][1] = False
-                #----------states---------#
+                    conn.send(b'NA')
+                if socket_list[ip][3]:
+                    print("---------")
+                    if not socket_list[ip][2].reKey():
+                        socket_list[ip][3] == False
+                        del auth_list[ip]
+                        conn.send(b'NA')
         except:
             traceback.print_exc()
             recieving = False 
@@ -147,6 +155,7 @@ def receive(conn, ip, port):
             conn.close()
             socket_list[ip][1] = False
     del socket_list[ip]
+    del auth_list[ip]
             
 def start():
     try:
@@ -164,7 +173,8 @@ def start():
                 conn, addr = server.accept()
                 ip, port = str(addr[0]), str(addr[1])
                 print('Accepting connection from ' + ip + ':' + port)
-                socket_list[ip] = [conn, True, None]
+                socket_list[ip] = [conn, True, None, False]
+                auth_list[ip] = []
                 try:
                     Thread(target=receive, args=(conn, ip, port)).start()
                 except:
