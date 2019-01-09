@@ -24,8 +24,11 @@ HOST="127.0.0.1"
 PORT=11111
 
 CLIENT_PASSWORD = "su12345"
-GATEWAY_KEY = "su12345"
+#GATEWAY_KEY = "su12345"
 SERVER_PORT = ""
+
+auth_list = dict()
+auth_list["127.0.0.1"] = ["127.0.0.1"]
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -50,16 +53,26 @@ def decryptAES(key, mess):
     return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
 
 def package_message(key, message):
+    if isinstance(key, str):
+        key = key.encode()
     h = SHA256.new()
-    h.update(key.encode())
+    h.update(key)
     hashed_password = h.hexdigest()
     key = hashed_password[:16].encode() 
     digest =  HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
     return message
 
-def integrity_check(message, hmac):
-    digest = HMAC.new(message).hexdigest()
+def integrity_check(key, message):
+    if isinstance(key, str):
+        key = key.encode()
+    h = SHA256.new()
+    h.update(key)
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode()
+    hmac = message[len(message)-32:]
+    message = message[:-32]
+    digest = HMAC.new(key, message).hexdigest()
     if digest.encode('utf-8') == hmac:
         return True
     else:
@@ -67,6 +80,7 @@ def integrity_check(message, hmac):
 
 def receive(conn, ip, port):
     nonce = None
+    GATEWAY_KEY = socket_list[ip][2]
     while socket_list[ip][1]:
         try:
             print("")
@@ -100,7 +114,22 @@ def receive(conn, ip, port):
                         conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
                         print("Seeds p, q sent to Gateway.")
                     else:
+                        conn.send(b'AF')
                         print("Wrong password.")
+                elif state == b'UR':
+                    if integrity_check(GATEWAY_KEY, buffer):
+                        print("Itegrity check succesful.")
+                        req = decryptAES(GATEWAY_KEY, buffer[2:-32])
+                        iotip = req[:int(len(req)/2)]
+                        cip = req[int(len(req)/2):]
+                        if  iotip.decode('utf8') in auth_list[cip.decode('utf8')]:
+                            print("Authorization granted.")
+                            mess = encryptAES(b'AG', GATEWAY_KEY)
+                            conn.send(package_message(GATEWAY_KEY, mess))
+                        else:
+                            print("Authorization failed.")
+                            mess = encryptAES(b'AF', GATEWAY_KEY)
+                            conn.send(package_message(GATEWAY_KEY, mess))
                 else:
                     print("Unexpected Path!")
                     socket_list[ip][1] = False
@@ -128,7 +157,7 @@ def start():
                 conn, addr = server.accept()
                 ip, port = str(addr[0]), str(addr[1])
                 print('Accepting connection from ' + ip + ':' + port)
-                socket_list[ip] = [conn, True]
+                socket_list[ip] = [conn, True, "su12345"]
                 try:
                     Thread(target=receive, args=(conn, ip, port)).start()
                 except:

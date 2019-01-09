@@ -39,15 +39,32 @@ def decryptAES(key, mess):
     cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
     return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
 
+def encryptAES(mess, key):
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode()
+    raw = Padding.pad(mess, 128, style='iso7816')
+    iv = Random.new().read(AES.block_size)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    return iv + cipher.encrypt(raw)
 
-def package_message(key, message): 
+def package_message(key, message):
+    if isinstance(key, str):
+        key = key.encode()
+    h = SHA256.new()
+    h.update(key)
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode() 
     digest =  HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
     return message
 
 def integrity_check(key, message):
+    if isinstance(key, str):
+        key = key.encode()
     h = SHA256.new()
-    h.update(key.encode())
+    h.update(key)
     hashed_password = h.hexdigest()
     key = hashed_password[:16].encode()
     hmac = message[len(message)-32:]
@@ -97,11 +114,26 @@ def receive(conn, ip, port):
                             conn.send(b'AF')
                 elif state == b'UR':
                     print("Authorization Request recieved.")
-                    if integrity_check(socket_list[ip][3].getKey(), buffer):
+                    cypr = socket_list[ip][2]
+                    if integrity_check(cypr.getKey(), buffer):
                         print("Integrity check is successful.")
-                        #send auth successful message
+                        req = cypr.decrypt(buffer[2:-32]) + ip.encode()
+                        encreq = encryptAES(req, GATEWAY_KEY)
+                        auth_socket.send(package_message(GATEWAY_KEY, b'UR' + encreq))
+                        resp = auth_socket.recv(MAX_BUFFER_SIZE)
+                        if integrity_check(GATEWAY_KEY, resp):
+                            print("Integrity check is successful.")
+                            resp = decryptAES(GATEWAY_KEY, resp[:-32])
+                            if resp == b'AG':
+                                print("Authorization granted!")
+                                #grant auth in some way
+                            else:
+                                print('Authorization failed.') 
+                            encresp = cypr.encrypt(resp)
+                            conn.send(package_message(cypr.getKey(), encresp))
                     else:
                         print("Integrity check failed.")
+                        conn.send(b'AF')
                         #send no auth
                 else:
                     print("Unexpected Path!")
