@@ -16,4 +16,3 @@
 # End of https://www.gitignore.io/api/visualstudiocode
 
 */__pycache__
-*/dummy_server.py

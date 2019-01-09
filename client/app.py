@@ -13,22 +13,59 @@ from PyQt5 import uic
 
 from hash_chain import hash_chain
 
+
 qtCreatorFile = "mainwindow.ui"
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 
 MAX_BUFFER_SIZE = 4096
 
-def integrity_check(message, hmac):
-    digest = HMAC.new(message).hexdigest()
+
+def decryptAES(key, mess):
+    iv = mess[:AES.block_size]
+    encs =  mess[AES.block_size:]
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16]
+    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
+    return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
+
+def encryptAES(mess, key):
+    h = SHA256.new()
+    print(key)
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode()
+    raw = Padding.pad(mess, 128, style='iso7816')
+    iv = Random.new().read(AES.block_size)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    return iv + cipher.encrypt(raw)
+
+def package_message(key, message):
+    if isinstance(key, str):
+        key = key.encode()
+    h = SHA256.new()
+    h.update(key)
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode() 
+    digest =  HMAC.new(key, message)
+    message = message + digest.hexdigest().encode()
+    return message
+
+def integrity_check(key, message):
+    if isinstance(key, str):
+        key = key.encode()
+    h = SHA256.new()
+    h.update(key)
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode()
+    hmac = message[len(message)-32:]
+    message = message[:-32]
+    digest = HMAC.new(key, message).hexdigest()
     if digest.encode('utf-8') == hmac:
         return True
     else:
         return False
-
-def package_message(message): 
-    digest =  HMAC.new(message)
-    message = message + digest.hexdigest().encode()
-    return message
 
 
 class App(QtWidgets.QMainWindow, Ui_MainWindow):
@@ -47,6 +84,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.nonce = None
         self.gateway_key = None
         self.sc = None
+        self.password = None
 
         # Configuration
         self.enterButton.setDisabled(True)
@@ -58,15 +96,11 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     # Action Buttons
     def close_event(self, event):
-        '''
-
-        '''
         reply = QtWidgets.QMessageBox.question(self, 'Message', 'Are you sure to quit?', QtWidgets.QMessageBox.Yes, QtGui.QMessageBox.No)
         if reply == QtWidgets.QMessageBox.Yes:
             event.accept()
         else:
             event.ignore
-
 
     def log(self, message):
         self.eventLogTextEdit.append(message)
@@ -86,45 +120,27 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.log('Client is connecting to gateway (' + self.server_address + ':' + str(self.server_port) +  ')...')
         print('Client is connecting to gateway(%s:%d)' % (self.server_address, self.server_port))
         
-        message = b'AR'
-        self.log('Message sent for authentication: ' + str(message))
-        print('Message sent for authentication: %s' % str(message))
-        res = package_message(message)
+        res = b'AR'
+        self.log('Message sent for authentication: ' + str(res))
+        print('Message sent for authentication: %s' % str(res))
         self.client.sendall(res)
         
         Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
-        # password = self.passwordLineEdit.text().encode()
-        password = 'su12345'.encode()
+        self.password = self.passwordLineEdit.text()
+        self.log('Client\'s password: ' + str(self.password))
+   
+        encrypted_message = encryptAES(self.nonce, self.password)
 
-        self.log('Client password: ' + str(password))
-        h = SHA256.new()
-        h.update(password)
-        hashed_password = h.hexdigest()
-       
-        self.key = hashed_password[:16]
-        iv = Random.new().read(AES.block_size)
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        encrypted_message = cipher.encrypt(Padding.pad(self.nonce,128, style='iso7816'))
-
-        self.log('Hash of password: ' + hashed_password)
-        self.log('Key: ' + self.key)
         self.log('Nonce: ' + str(self.nonce))
 
-        message = b'CR' + iv + encrypted_message
-        res = package_message(message)
+        res = b'CR' + encrypted_message
         self.client.sendall(res)
         
         self.enterButton.setDisabled(True)
         self.passwordLineEdit.setDisabled(True)
         
-        # buffer = self.client.recv(MAX_BUFFER_SIZE).decode('utf8')
-        # message = buffer[:-32]
-        # digest = buffer[len(buffer)-32:]
-
-        # seeds are 128 bits   
-        # first 16 bits seed1, second 16 bits seed2
 
     def disconnect_server(self):
         message = 'DISCONNECT'
@@ -134,47 +150,43 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.connectButton.setEnabled(True)
         self.disconnectButton.setDisabled(True)
 
-    def get_ip():
-        from requests import get
-        ip = get('https://api.ipify.org').text
-        return ip
-
-    def check_integrity(message: str, hmac: str) -> bool:
-        '''
-        :return 
-        :param
-        :param 
-        '''
-        digest = HMAC.new(message.encode())
-        return(digest == hmac)
-
     def receive(self):
         try:
             while self.connected:
                 buffer = self.client.recv(MAX_BUFFER_SIZE)
-                message = buffer[:-32]
-                if len(message) > 0:
-                    print('Message received: %s' % message)
-                digest = buffer[len(buffer)-32:]
+                if len(buffer) > 0:
+                    print('Message received: %s' % buffer)
+                
                 state = buffer[:2]
-                if integrity_check(message, digest): # a valid digest
-                    if state == b'CR':
-                        self.nonce = message[2:]     
-                        print('Please enter your password and press Enter button')
-                        self.enterButton.setEnabled(True)
 
-                    elif state == b'GH': # e.g 'GH iv as68d56 iv af5fdb'
-                        message = message[2:]
-                        iv = message[:AES.block_size]
-                        print('iv', iv)
-                        encrypted_seeds = message[AES.block_size:]
-                        cipher = AES.new(self.key.encode(), AES.MODE_CBC, iv)
-                        seeds = cipher.decrypt(encrypted_seeds)
-                        print('seed 1: ' + str(seeds[AES.block_size:2*AES.block_size]))
-                        print('seed 2: ' + str(seeds[:AES.block_size]))
-                        self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
-                        print('Hash chains are generated succesfully...')
-                        print(self.sc.encrypt('wireles'))
+                if state == b'CR': # CHALLENGE RESPONSE
+                    self.nonce = buffer[2:]     
+                    print('Please enter your password and hit Enter')
+                    self.enterButton.setEnabled(True)
+
+                elif state == b'GH': # GENERATE HASHCHAINS e.g 'GH iv as68d56 iv af5fdb'
+                    message = buffer[2:]
+                    seeds = decryptAES(self.password, message)
+                    self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
+                    print('Hash chains are generated succesfully...')
+
+                elif state == b'AR':
+                    continue
+
+                elif state == b'AF':
+                    self.enterButton.setEnabled(True)
+                    self.passwordTextEdit.setEnabled(True)
+                    self.log('Password is wrong or your ip is not registered. Try to re-enter your password...')
+                
+                elif state == b'NA':
+                    self.enterButton.setEnabled(True)
+                    self.passwordTextEdit.setEnabled(True)
+                    self.log('Authentication time out..')
+                    self.log('Enter your password to authenticate again')
+
+
+
+
 
                     
 
