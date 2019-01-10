@@ -114,6 +114,9 @@ def receive(conn, ip, port):
                                 socket_list[ip][2] = SC
                         else:
                             conn.send(b'AF')
+                    else:
+                        print("Integrity failed.")
+                        conn.send(b'AF')
                 elif state == b'UR' and socket_list[ip][3]:
                     print("Authorization Request recieved.")
                     cypr = socket_list[ip][2]
