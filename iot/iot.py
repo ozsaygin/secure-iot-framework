@@ -13,8 +13,7 @@ from symmetric_cyphr import symmtrc_cypr
 
 from hash_chain import hash_chain
 
-HOST = "127.0.0.1"
-PORT = 11114
+
 MAX_BUFFER_SIZE = 4096
 iot = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 connected = False
@@ -55,17 +54,23 @@ def package_message(key, message):
     message = message + digest.hexdigest().encode()
     return message
 
+ def get_mac():
+        from uuid import getnode as get_mac
+        mac = get_mac()
+        mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
+        return mac
 
 def start():
     try:
-        iot.connect((HOST, PORT))
-        res = b'AR'
+        GATEWAY_IP = input('Please enter server\'s ip address: ')
+        PORT = input('Please enter server\'s port: ')
+        iot.connect((GATEWAY_IP, PORT))
+        res = b'AR' + get_mac().encode()
         iot.sendall(res)
         Thread(target=receive, args=()).start()
 
     except socket.error as msg:
-        print('Bind failed. Error : ' + str(sys.exc_info()))
-        print(msg)
+        print('Bind failed. Error : ' + str(sys.exc_info()) + msg)
         sys.exit()
 
 
@@ -91,6 +96,7 @@ def receive():
                 print('Nonce: ' + str(nonce))
                 res = b'CR' + encrypted_message
                 iot.sendall(res)
+                print('Message sent: ' + res)
 
             elif state == b'GH':
                 message = buffer[2:]
@@ -109,7 +115,8 @@ def receive():
             
             elif state == b'AN':
                 print('Authentication time out..')
-                print('Enter your password to authenticate again')
+                res = b'AR'+ get_mac().encode()
+                self.client.sendall(res)
 
             elif state == b'WP':
                 print('Password is wrong or your ip is not registered.') 
@@ -119,12 +126,7 @@ def receive():
                 print('Nonce: ' + str(nonce))
                 res = b'CR' + encrypted_message
                 iot.sendall(res)
- 
 
-                    
-
-                
-                
     except:
         import traceback
         traceback.print_exc()
