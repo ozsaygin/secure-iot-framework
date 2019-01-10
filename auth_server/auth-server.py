@@ -29,6 +29,7 @@ SERVER_PORT = ""
 
 auth_list = dict()
 auth_list["127.0.0.1"] = ["127.0.0.1"]
+#auth_list["127.0.0.1"] = [[authorizations], key]
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 

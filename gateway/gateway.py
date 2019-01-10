@@ -136,7 +136,7 @@ def receive(conn, ip, port):
                             else:
                                 print('Authorization failed.') 
                             encresp = cypr.encrypt(resp)
-                            conn.send(package_message(cypr.getKey(), encresp))
+                            conn.send(package_message(cypr.getKey(), b'AP' + encresp))
                     else:
                         print("Integrity check failed.")
                         conn.send(b'FA')
