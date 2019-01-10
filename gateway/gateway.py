@@ -100,7 +100,7 @@ def receive(conn, ip, port):
                 elif state == b'CR':
                     print("Challenge response recieved for IP: ", ip)
                     print("Forwarding challenge to AS.")
-                    auth_socket.send(buffer)
+                    auth_socket.send(b'CRSPLIT' + ip.encode() + b'SPLIT' + buffer[2:])
                     authRespC = auth_socket.recv(MAX_BUFFER_SIZE)
                     if integrity_check(GATEWAY_KEY, authRespC):
                         print("CHALLENGE_RESPONSE AS Integrity check successful.")

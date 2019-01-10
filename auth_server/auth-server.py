@@ -23,13 +23,10 @@ accepting = True
 HOST="127.0.0.1"
 PORT=11111
 
-CLIENT_PASSWORD = "su123456"
-#GATEWAY_KEY = "su12345"
 SERVER_PORT = ""
 
 auth_list = dict()
-auth_list["127.0.0.1"] = ["127.0.0.1"]
-#auth_list["127.0.0.1"] = [[authorizations], key]
+auth_list["127.0.0.1"] = [["127.0.0.1"], "su123456"]
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -102,13 +99,17 @@ def receive(conn, ip, port):
                     print("CHALLENGE sent to ",ip , ".")
                 elif state == b'CR':
                     print("A challenge recieved.")
-                    plain_message = decryptAES(CLIENT_PASSWORD, buffer[2:])
+                    state, cip, encnonce = buffer.split(b'SPLIT')
+                    cip = cip.decode('utf8')
+                    print("passs", auth_list[cip][1])
+                    plain_message = decryptAES(auth_list[cip][1], encnonce)
+                    print("plaain", plain_message)
                     if nonce == plain_message:
                         print("Authentication succesful!")
                         # client packet
                         s1 = Random.new().read(AES.block_size)
                         s2 = Random.new().read(AES.block_size)
-                        encryptedSeeds = encryptAES(s1 + s2, CLIENT_PASSWORD)
+                        encryptedSeeds = encryptAES(s1 + s2, auth_list[cip][1])
                         conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
                         # gateway packet
                         encryptedSeeds = encryptAES(s1 + s2, GATEWAY_KEY) 
@@ -123,7 +124,7 @@ def receive(conn, ip, port):
                         req = decryptAES(GATEWAY_KEY, buffer[2:-32])
                         iotip = req[:int(len(req)/2)]
                         cip = req[int(len(req)/2):]
-                        if  iotip.decode('utf8') in auth_list[cip.decode('utf8')]:
+                        if  iotip.decode('utf8') in auth_list[cip.decode('utf8')][0]:
                             print("Authorization granted.")
                             mess = encryptAES(b'AG', GATEWAY_KEY)
                             conn.send(package_message(GATEWAY_KEY, mess))
