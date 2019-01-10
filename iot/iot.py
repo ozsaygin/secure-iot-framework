@@ -16,11 +16,39 @@ PORT = 11115
 MAX_BUFFER_SIZE = 4096
 iot = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 connected = False
-listening = False
 
+password = None
+sc = None
 
-def package_message(message): 
-    digest =  HMAC.new(message)
+def decryptAES(key, mess):
+    iv = mess[:AES.block_size]
+    encs =  mess[AES.block_size:]
+    h = SHA256.new()
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16]
+    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
+    return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
+
+def encryptAES(mess, key):
+    h = SHA256.new()
+    print(key)
+    h.update(key.encode())
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode()
+    raw = Padding.pad(mess, 128, style='iso7816')
+    iv = Random.new().read(AES.block_size)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    return iv + cipher.encrypt(raw)
+
+def package_message(key, message):
+    if isinstance(key, str):
+        key = key.encode()
+    h = SHA256.new()
+    h.update(key)
+    hashed_password = h.hexdigest()
+    key = hashed_password[:16].encode() 
+    digest =  HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
     return message
 
@@ -28,11 +56,9 @@ def package_message(message):
 def start():
     try:
         iot.connect((HOST, PORT))
-        connected = True
-        message = 'AUTHENTICATION_REQUEST '
-        res = package_message(message)
+        global connected = True
+        res = b'AR'
         iot.sendall(res)
-        connected = True
         Thread(target=receive, args=()).start()
 
     except socket.error as msg:
@@ -46,46 +72,37 @@ def receive():
     hc = None
 
     try:
-        while True:
+        while connected:
             buffer = iot.recv(MAX_BUFFER_SIZE).decode('utf8')
-            print(buffer)
-            message = buffer[:-32]
-            digest = buffer[len(buffer)-32:]
-            if HMAC.new(message.encode()).hexdigest() == digest: # a valid digest
-                command = message.split()[0] # e.g: 'CHALLENGE'
-                if (len(message.split()) > 1):
-                    args = message.split()[1:]
-                if command == 'CR':
-                    nonce = message[2:]     
-                    password = input('Please enter your password and press Enter button')
-                    h = SHA256.new()
-                    h.update(password)
-                    hashed_password = h.hexdigest()
-                
-                    key = hashed_password[:16]
-                    iv = Random.new().read(AES.block_size)
-                    cipher = AES.new(key, AES.MODE_CBC, iv)
-                    encrypted_message = cipher.encrypt(Padding.pad(nonce,128, style='iso7816'))
+            if len(buffer) > 0:
+                print('Message received: %s' % buffer)
 
-                    print('Hash of password: ' + hashed_password)
-                    print('Key: ' + key)
-                    print('Nonce: ' + str(nonce))
+            state = buffer[:2]
 
-                    message = b'CR' + iv + encrypted_message
-                    res = package_message(message)
-                    iot.sendall(res)
+            if state == b'CR': # CHALLENGE RESPONSE
+                nonce = buffer[2:]     
+                global password = input('Please enter your password and hit Enter')
+                print('Client\'s password: ' + str(password))
+   
+                encrypted_message = encryptAES(nonce, password)
 
-                elif command == 'GH':
-                    iv = message[2:AES.block_size+2]
-                    encrypted_seeds = message[AES.block_size+2:]
-                    cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
-                    decrypted_seeds = Padding.pad(cipher.decrypt(encrypted_seeds), 128, style='iso7816')
-                    seed1 = decrypted_seed[:16]
-                    seed2 = decrypted_seed[16:]
-                    print('seed 1: ' + str(seed1))
-                    print('seed 2: ' + str(seed2))
-                    hc = hash_chain(100, seed1, seed2)
+                print('Nonce: ' + str(nonce))
+
+                res = b'CR' + encrypted_message
+                iot.sendall(res)
+
+            elif command == b'GH':
+                message = buffer[2:]
+                    seeds = decryptAES(password, message)
+                    global sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                     print('Hash chains are generated succesfully...')
+
+            elif state == b'AF':
+                global password = input('Password is wrong or your ip is not registered. Please re-enter your password: ')
+                encrypted_message = encryptAES(nonce, password)
+                print('Nonce: ' + str(nonce))
+                res = b'CR' + encrypted_message
+                iot.sendall(res)
 
                     
 
