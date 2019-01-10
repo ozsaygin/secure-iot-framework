@@ -85,6 +85,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.gateway_key = None
         self.sc = None
         self.password = None
+        self.connected_iots = list()
 
         # Configuration
         self.enterButton.setDisabled(True)
@@ -93,6 +94,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.connectButton.clicked.connect(self.connect_server)
         self.disconnectButton.clicked.connect(self.disconnect_server)
         self.enterButton.clicked.connect(self.enter_password)
+        self.requestButton.clicked.connect(self.request_iot)
 
     # Action Buttons
     def close_event(self, event):
@@ -104,6 +106,14 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def log(self, message):
         self.eventLogTextEdit.append(message)
+
+    def request_iot():
+        iotid = self.iotLineEdit
+        self.connect_iots.append(iotid)
+        enc = self.sc.encrypt(iotid)
+        msg = b'UR' + enc
+        msg = package_message(self.sc.getKey(), msg) 
+        client.sendall(msg)
 
     def connect_server(self):
         self.connectButton.setDisabled(True) # disable connect button
@@ -169,10 +179,11 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                     seeds = decryptAES(self.password, message)
                     self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                     print('Hash chains are generated succesfully...')
+                    print('Please enter a valid iot device ID below')
 
-                elif state == b'AR':
-                    continue
-
+                elif state == b'AG':
+                    print('Authentication granted')
+                    
                 elif state == b'AF':
                     self.enterButton.setEnabled(True)
                     self.passwordTextEdit.setEnabled(True)
