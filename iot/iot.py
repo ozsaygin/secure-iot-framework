@@ -100,7 +100,7 @@ def receive():
                 print('Nonce: ' + str(nonce))
                 res = b'CR' + encrypted_message
                 iot.sendall(res)
-                print('Message sent: ' + res)
+                print('Message sent: ' + str(res))
 
             elif state == b'GH':
                 message = buffer[2:]
@@ -123,6 +123,7 @@ def receive():
                 self.client.sendall(res)
 
             elif state == b'WP':
+                
                 print('Password is wrong or your ip is not registered.') 
                 password = input('Enter your password: ')
                 print('IOT\'s password: ' + str(password))
@@ -132,6 +133,7 @@ def receive():
                 iot.sendall(res)
 
     except:
+
         import traceback
         traceback.print_exc()
 

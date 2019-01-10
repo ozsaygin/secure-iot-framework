@@ -88,7 +88,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.server_port = 9999
         self.connected = False
         self.terminating = False
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client = None
         self.key = None
         self.nonce = None
         self.gateway_key = None
@@ -99,12 +99,14 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
         # Configuration
         self.enterButton.setDisabled(True)
-
+        self.requestButton.setDisabled(True)
+        self.disconnectButton.setDisabled(True)
         # Buttons
         self.connectButton.clicked.connect(self.connect_server)
         self.disconnectButton.clicked.connect(self.disconnect_server)
         self.enterButton.clicked.connect(self.enter_password)
         self.requestButton.clicked.connect(self.request_iot)
+        
 
     # Action Buttons
     def close_event(self, event):
@@ -127,30 +129,36 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.client.sendall(msg)
 
     def connect_server(self):
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connectButton.setDisabled(True)  # disable connect button
 
         self.server_address = self.serverAddressLineEdit.text()
         self.server_port = int(self.portNumberLineEdit.text())
 
-        self.client.connect((self.server_address, self.server_port))
-        self.connected = True
+        try:
+            self.client.connect((self.server_address, self.server_port))
+            self.connected = True
 
-        self.log('Client is connecting to gateway (' +
-                 self.server_address + ':' + str(self.server_port) + ')...')
-        print('Client is connecting to gateway(%s:%d)' %
-              (self.server_address, self.server_port))
+            self.log('Client is connecting to gateway (' +
+                    self.server_address + ':' + str(self.server_port) + ')...')
+            print('Client is connecting to gateway(%s:%d)' %
+                (self.server_address, self.server_port))
 
-        res = b'AR' + get_mac().encode()
-        self.client.sendall(res)
+            res = b'AR' + get_mac().encode()
+            self.client.sendall(res)
 
-        self.log('Message sent for authentication: ' + str(res))
-        print('Message sent for authentication: %s' % str(res))
+            self.log('Message sent for authentication: ' + str(res))
+            print('Message sent for authentication: %s' % str(res))
 
-        # Buttons
-        self.connect_button.setDisabled(True)
-        self.disconnect.self.setEnabled(True)
+            # Buttons
+            self.connectButton.setDisabled(True)
+            self.disconnectButton.setEnabled(True)
 
-        Thread(target=self.receive, args=()).start()
+            Thread(target=self.receive, args=()).start()
+        except:
+            print('bye')
+            self.client.close()
+            sys.exit()
 
     def enter_password(self):
         self.password = self.passwordLineEdit.text()
@@ -174,6 +182,9 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def disconnect_server(self):
         self.client.close()
+        print('bye bye!')
+        self.log('bye bye!')
+        sys.exit()
         self.connected=False
         self.connectButton.setEnabled(True)
         self.requestButton.setDisabled(True)
@@ -185,8 +196,8 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
             while self.connected:
                 buffer=self.client.recv(self.MAX_BUFFER_SIZE)
                 if len(buffer) > 0:
-                    print('Message received: ' + buffer)
-                    self.log('Message received: ' + buffer)
+                    print('Message received: ' + str(buffer))
+                    self.log('Message received: ' + str(buffer))
 
                 state=buffer[:2]
 
@@ -241,11 +252,16 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                     self.requestButton.setEnabled(True)
 
                 elif state == b'WP':  # WRONG PASSWORD
+                    self.requestButton.setDisabled(True)
                     self.log(
                         'Password is wrong or your ip is not registered. Try to re-enter your password...')
                     print(
                         'Password is wrong or your ip is not registered. Try to re-enter your password...')
                     self.enterButton.setEnabled(True)
         except:
+            self.client.close()
+            print('bye bye!')
+            self.log('bye bye!')
+            sys.exit()
             import traceback
             traceback.print_exc()
