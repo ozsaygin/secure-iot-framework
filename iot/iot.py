@@ -24,13 +24,14 @@ sc = None
 
 def decryptAES(key, mess):
     iv = mess[:AES.block_size]
-    encs =  mess[AES.block_size:]
+    encs = mess[AES.block_size:]
     h = SHA256.new()
     h.update(key.encode())
     hashed_password = h.hexdigest()
     key = hashed_password[:16]
     cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
     return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
+
 
 def encryptAES(mess, key):
     h = SHA256.new()
@@ -43,28 +44,31 @@ def encryptAES(mess, key):
     cipher = AES.new(key, AES.MODE_CBC, iv)
     return iv + cipher.encrypt(raw)
 
+
 def package_message(key, message):
     if isinstance(key, str):
         key = key.encode()
     h = SHA256.new()
     h.update(key)
     hashed_password = h.hexdigest()
-    key = hashed_password[:16].encode() 
-    digest =  HMAC.new(key, message)
+    key = hashed_password[:16].encode()
+    digest = HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
     return message
 
- def get_mac():
-        from uuid import getnode as get_mac
-        mac = get_mac()
-        mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
-        return mac
+
+def get_mac():
+    from uuid import getnode as get_mac
+    mac = get_mac()
+    mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
+    return mac
+
 
 def start():
     try:
         GATEWAY_IP = input('Please enter server\'s ip address: ')
         PORT = input('Please enter server\'s port: ')
-        iot.connect((GATEWAY_IP, PORT))
+        iot.connect((GATEWAY_IP, int(PORT)))
         res = b'AR' + get_mac().encode()
         iot.sendall(res)
         Thread(target=receive, args=()).start()
