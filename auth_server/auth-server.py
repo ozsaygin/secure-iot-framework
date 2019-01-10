@@ -101,9 +101,11 @@ def receive(conn, ip, port):
                     print("A challenge recieved.")
                     state, cip, encnonce = buffer.split(b'SPLIT')
                     cip = cip.decode('utf8')
-                    print("passs", auth_list[cip][1])
-                    plain_message = decryptAES(auth_list[cip][1], encnonce)
-                    print("plaain", plain_message)
+                    plain_message = ""
+                    try:
+                        plain_message = decryptAES(auth_list[cip][1], encnonce)
+                    except:
+                        print("Wrong password.")
                     if nonce == plain_message:
                         print("Authentication succesful!")
                         # client packet
@@ -116,8 +118,7 @@ def receive(conn, ip, port):
                         conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
                         print("Seeds p, q sent to Gateway.")
                     else:
-                        conn.send(b'WP')
-                        print("Wrong password.")
+                        conn.send(package_message(GATEWAY_KEY, b'WP'))
                 elif state == b'UR':
                     if integrity_check(GATEWAY_KEY, buffer):
                         print("Itegrity check succesful.")

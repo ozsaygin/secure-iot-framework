@@ -102,10 +102,10 @@ def receive(conn, ip, port):
                     print("Forwarding challenge to AS.")
                     auth_socket.send(b'CRSPLIT' + ip.encode() + b'SPLIT' + buffer[2:])
                     authRespC = auth_socket.recv(MAX_BUFFER_SIZE)
-                    authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
                     if integrity_check(GATEWAY_KEY, authRespC):
                         print("CHALLENGE_RESPONSE AS Integrity check successful.")
                         if authRespC[:2] != b'WP':
+                            authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
                             socket_list[ip][3] = True
                             conn.send(b'GH' + authRespC[:-32])
                             if integrity_check(GATEWAY_KEY, authRespG):
