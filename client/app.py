@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import sys
 import socket
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Cipher import AES
@@ -107,13 +108,13 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def log(self, message):
         self.eventLogTextEdit.append(message)
 
-    def request_iot():
-        iotid = self.iotLineEdit
-        self.connect_iots.append(iotid)
-        enc = self.sc.encrypt(iotid)
+    def request_iot(self):
+        iotid = self.iotLineEdit.text()
+        self.connected_iots.append(iotid)
+        enc = self.sc.encrypt(iotid.encode())
         msg = b'UR' + enc
-        msg = package_message(self.sc.getKey(), msg) 
-        client.sendall(msg)
+        msg = package_message(self.sc.getKey(), msg)
+        self.client.sendall(msg)
 
     def connect_server(self):
         self.connectButton.setDisabled(True) # disable connect button
@@ -140,8 +141,9 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def enter_password(self):
         self.password = self.passwordLineEdit.text()
         self.log('Client\'s password: ' + str(self.password))
-   
-        encrypted_message = encryptAES(self.nonce, self.password)
+
+        msg = self.nonce
+        encrypted_message = encryptAES(msg, self.password)
 
         self.log('Nonce: ' + str(self.nonce))
 
@@ -153,10 +155,10 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         
 
     def disconnect_server(self):
-        message = 'DISCONNECT'
-        res = package.message(message)
-        self.client.sendall(res)
-        self.client.close() 
+        # message = b'DC'
+        # self.client.sendall(message)
+        self.client.close()
+        sys.exit() 
         self.connectButton.setEnabled(True)
         self.disconnectButton.setDisabled(True)
 
@@ -177,29 +179,37 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                 elif state == b'GH': # GENERATE HASHCHAINS e.g 'GH iv as68d56 iv af5fdb'
                     message = buffer[2:]
                     seeds = decryptAES(self.password, message)
-                    self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                     print('Hash chains are generated succesfully...')
+                    self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
+                    print('-------')
+                    self.sc.reKey()
                     print('Please enter a valid iot device ID below')
 
-                elif state == b'AG':
-                    print('Authentication granted')
-                    
-                elif state == b'AF':
+                elif state == b'AP': # AUTHANTICATION RESPONSE
+                    if integrity_check(self.sc.getKey(), buffer):
+                        print('Integrity check is successfull...')
+                        if self.sc.decrypt(buffer[2:-32]) == b'AF':
+                            print('Authorization failed')
+                        elif self.sc.decrypt(buffer[2:-32]) == b'AG':
+                            print('Authorization granted')
+
+                elif state == b'AF': #AUTHORIZATION FAILED
                     self.enterButton.setEnabled(True)
-                    self.passwordTextEdit.setEnabled(True)
                     self.log('Password is wrong or your ip is not registered. Try to re-enter your password...')
                 
-                elif state == b'NA':
+                elif state == b'AN': # AUTHORIZATION NEEDED - KEY TIMED OUT
                     self.enterButton.setEnabled(True)
-                    self.passwordTextEdit.setEnabled(True)
                     self.log('Authentication time out..')
                     self.log('Enter your password to authenticate again')
 
+                elif state == b'NA': # NO AUTHORIZATION
+                    print('You have no authorization to access this device')
+                    print('Please try to access to another device')
+                    self.requestButton.setEnabled(True)
 
-
-
-
-                    
+                elif state == b'WP': # WRONG PASSWORD
+                    self.log('Password is wrong or your ip is not registered. Try to re-enter your password...')
+                    self.enterButton.setEnabled(True)     
 
         except:
             import traceback

@@ -9,16 +9,19 @@ import sys
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
 
+from symmetric_cyphr import symmtrc_cypr
+
 from hash_chain import hash_chain
 
 HOST = "127.0.0.1"
-PORT = 11115
+PORT = 11114
 MAX_BUFFER_SIZE = 4096
 iot = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 connected = False
 
 password = None
 sc = None
+
 
 def decryptAES(key, mess):
     iv = mess[:AES.block_size]
@@ -56,7 +59,6 @@ def package_message(key, message):
 def start():
     try:
         iot.connect((HOST, PORT))
-        global connected = True
         res = b'AR'
         iot.sendall(res)
         Thread(target=receive, args=()).start()
@@ -69,11 +71,13 @@ def start():
 
 def receive():
     key = None
-    hc = None
+    sc = None
+    password = None
+    connected = True
 
     try:
         while connected:
-            buffer = iot.recv(MAX_BUFFER_SIZE).decode('utf8')
+            buffer = iot.recv(MAX_BUFFER_SIZE)
             if len(buffer) > 0:
                 print('Message received: %s' % buffer)
 
@@ -81,28 +85,41 @@ def receive():
 
             if state == b'CR': # CHALLENGE RESPONSE
                 nonce = buffer[2:]     
-                global password = input('Please enter your password and hit Enter')
+                password = input('Please enter your password and hit Enter: ')
                 print('Client\'s password: ' + str(password))
-   
                 encrypted_message = encryptAES(nonce, password)
-
                 print('Nonce: ' + str(nonce))
-
                 res = b'CR' + encrypted_message
                 iot.sendall(res)
 
-            elif command == b'GH':
+            elif state == b'GH':
                 message = buffer[2:]
-                    seeds = decryptAES(password, message)
-                    global sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
-                    print('Hash chains are generated succesfully...')
+                seeds = decryptAES(password, message)
+                print('Hash chains are generated succesfully...')
+                sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
+                print('-------')
+                sc.reKey()
 
             elif state == b'AF':
-                global password = input('Password is wrong or your ip is not registered. Please re-enter your password: ')
+                password = input('Password is wrong or your ip is not registered. Please re-enter your password: ')
                 encrypted_message = encryptAES(nonce, password)
                 print('Nonce: ' + str(nonce))
                 res = b'CR' + encrypted_message
                 iot.sendall(res)
+            
+            elif state == b'AN':
+                print('Authentication time out..')
+                print('Enter your password to authenticate again')
+
+            elif state == b'WP':
+                print('Password is wrong or your ip is not registered.') 
+                password = input('Enter your password: ')
+                print('IOT\'s password: ' + str(password))
+                encrypted_message = encryptAES(nonce, password)
+                print('Nonce: ' + str(nonce))
+                res = b'CR' + encrypted_message
+                iot.sendall(res)
+ 
 
                     
 

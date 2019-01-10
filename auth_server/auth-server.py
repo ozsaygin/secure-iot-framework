@@ -26,7 +26,8 @@ PORT=11111
 SERVER_PORT = ""
 
 auth_list = dict()
-auth_list["127.0.0.1"] = [["127.0.0.1"], "su123456"]
+auth_list["127.0.0.1"] = [["127.0.0.1"], "su123456"] # CLIENT
+auth_list["127.0.0.1"] = [["127.0.0.1"], "iot123456"]
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
