@@ -225,11 +225,8 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                     self.enterButton.setEnabled(True)
 
                     self.print('Authentication time out..')
-                    self.print('Enter your password to authenticate again')
-
-                    self.log('Authentication time out..')
-                    self.log('Enter your password to authenticate again')
-
+                    res = b'AR'+ get_mac().encode()
+                    self.client.sendall(res)
                 elif state == b'NA': # NO AUTHORIZATION
                     print('You have no authorization to access this device')
                     print('Please try to access to another device')
