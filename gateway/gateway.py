@@ -102,18 +102,19 @@ def receive(conn, ip, port):
                     print("Forwarding challenge to AS.")
                     auth_socket.send(b'CRSPLIT' + ip.encode() + b'SPLIT' + buffer[2:])
                     authRespC = auth_socket.recv(MAX_BUFFER_SIZE)
+                    authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
                     if integrity_check(GATEWAY_KEY, authRespC):
                         print("CHALLENGE_RESPONSE AS Integrity check successful.")
-                        if authRespC[:2] != b'AF':
+                        if authRespC[:2] != b'WP':
                             socket_list[ip][3] = True
                             conn.send(b'GH' + authRespC[:-32])
-                            authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
                             if integrity_check(GATEWAY_KEY, authRespG):
                                 seeds = decryptAES(GATEWAY_KEY, authRespG[:-32])
                                 SC = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                                 socket_list[ip][2] = SC
                         else:
-                            conn.send(b'AF')
+                            print(ip, "Client authorization request failed.")
+                            conn.send(b'WP')
                     else:
                         print("Integrity failed.")
                         conn.send(b'AF')

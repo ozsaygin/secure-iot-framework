@@ -116,7 +116,7 @@ def receive(conn, ip, port):
                         conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
                         print("Seeds p, q sent to Gateway.")
                     else:
-                        conn.send(b'AF')
+                        conn.send(b'WP')
                         print("Wrong password.")
                 elif state == b'UR':
                     if integrity_check(GATEWAY_KEY, buffer):
@@ -130,7 +130,7 @@ def receive(conn, ip, port):
                             conn.send(package_message(GATEWAY_KEY, mess))
                         else:
                             print("Authorization failed.")
-                            mess = encryptAES(b'AF', GATEWAY_KEY)
+                            mess = encryptAES(b'NA', GATEWAY_KEY)
                             conn.send(package_message(GATEWAY_KEY, mess))
                 else:
                     print("Unexpected Path!")
