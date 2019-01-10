@@ -142,18 +142,17 @@ def receive(conn, ip, port):
                         print("Integrity check failed.")
                         conn.send(b'FA')
                 else:
-                    print("Needs authorization.")
+                    print("Authorization needed.")
                     socket_list[ip][1] = False
-                    conn.send(b'NA')
+                    conn.send(b'AN')
                 if socket_list[ip][3]:
                     print("---------")
                     if not socket_list[ip][2].reKey():
                         socket_list[ip][3] == False
                         del auth_list[ip]
-                        conn.send(b'NA')
+                        conn.send(b'AN')
         except:
             traceback.print_exc()
-            recieving = False 
             if not terminating:
                 print('client has disconnected')
             conn.close()
