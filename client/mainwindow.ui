@@ -73,6 +73,19 @@
       <widget class="QLineEdit" name="passwordLineEdit"/>
      </item>
      <item>
+      <widget class="QLabel" name="label_4">
+       <property name="text">
+        <string>Please enter a valid iot device ID below</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="iotLineEdit"/>
+     </item>
+     <item>
       <widget class="QTextEdit" name="eventLogTextEdit">
        <property name="placeholderText">
         <string>Event log</string>
@@ -99,6 +112,13 @@
         <widget class="QPushButton" name="enterButton">
          <property name="text">
           <string>Enter</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="requestButton">
+         <property name="text">
+          <string>Request</string>
          </property>
         </widget>
        </item>
