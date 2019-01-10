@@ -108,7 +108,7 @@ def receive(conn, ip, port):
                         s1 = Random.new().read(AES.block_size)
                         s2 = Random.new().read(AES.block_size)
                         encryptedSeeds = encryptAES(s1 + s2, GATEWAY_KEY)
-                        conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
+                        conn.send(package_message(CLIENT_PASSWORD, encryptedSeeds))
                         # gateway packet
                         encryptedSeeds = encryptAES(s1 + s2, GATEWAY_KEY) 
                         conn.send(package_message(GATEWAY_KEY, encryptedSeeds))
