@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import sys
 import socket
 from Crypto.Hash import HMAC, SHA256
 from Crypto.Cipher import AES
@@ -86,6 +87,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.sc = None
         self.password = None
         self.connected_iots = list()
+        self.MAX_BUFFER_SIZE = 4096
 
         # Configuration
         self.enterButton.setDisabled(True)
@@ -107,22 +109,25 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def log(self, message):
         self.eventLogTextEdit.append(message)
 
-    def request_iot():
-        iotid = self.iotLineEdit
-        self.connect_iots.append(iotid)
-        enc = self.sc.encrypt(iotid)
+    def get_mac():
+        from uuid import getnode as get_mac
+        mac = get_mac()
+        mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
+        return mac
+
+    def request_iot(self):
+        iotid = self.iotLineEdit.text()
+        self.connected_iots.append(iotid)
+        enc = self.sc.encrypt(iotid.encode())
         msg = b'UR' + enc
-        msg = package_message(self.sc.getKey(), msg) 
-        client.sendall(msg)
+        msg = package_message(self.sc.getKey(), msg)
+        self.client.sendall(msg)
 
     def connect_server(self):
         self.connectButton.setDisabled(True) # disable connect button
 
-        # self.server_address = self.serverAddressLineEdit.text()
-        # self.server_port = int(self.portNumberLineEdit.text())
-
-        self.server_address = '127.0.0.1'
-        self.server_port = 11114
+        self.server_address = self.serverAddressLineEdit.text()
+        self.server_port = int(self.portNumberLineEdit.text())
 
         self.client.connect((self.server_address, self.server_port))
         self.connected = True
@@ -130,77 +135,113 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.log('Client is connecting to gateway (' + self.server_address + ':' + str(self.server_port) +  ')...')
         print('Client is connecting to gateway(%s:%d)' % (self.server_address, self.server_port))
         
-        res = b'AR'
+        res = b'AR' + get_mac().encode()
+        self.client.sendall(res)
+
         self.log('Message sent for authentication: ' + str(res))
         print('Message sent for authentication: %s' % str(res))
-        self.client.sendall(res)
-        
+
+        # Buttons
+        self.connect_button.setDisabled(True)
+        self.disconnect.self.setEnabled(True)
+       
         Thread(target = self.receive, args=()).start()
 
     def enter_password(self):
         self.password = self.passwordLineEdit.text()
-        self.log('Client\'s password: ' + str(self.password))
-   
+
+        print(Password: ' + str(self.password))
+        self.log('Password: ' + str(self.password))
+
         encrypted_message = encryptAES(self.nonce, self.password)
 
+        print('Nonce: ' + str(self.nonce))
         self.log('Nonce: ' + str(self.nonce))
 
         res = b'CR' + encrypted_message
         self.client.sendall(res)
-        
-        self.enterButton.setDisabled(True)
-        self.passwordLineEdit.setDisabled(True)
-        
 
+        print('Message sent for authentication: ' + str(res))
+        self.log('Message sent for authentication: ' + str(res)
+
+        self.enterButton.setDisabled(True)
+        self.requestButton.setEnabled(True)
+    
+        
     def disconnect_server(self):
-        message = 'DISCONNECT'
-        res = package.message(message)
-        self.client.sendall(res)
-        self.client.close() 
+        self.client.close()
+        self.connected = False
         self.connectButton.setEnabled(True)
+        self.requestButton.setDisabled(True)
+        self.enterButton.setDisabled(True)
         self.disconnectButton.setDisabled(True)
 
     def receive(self):
         try:
             while self.connected:
-                buffer = self.client.recv(MAX_BUFFER_SIZE)
+                buffer = self.client.recv(self.MAX_BUFFER_SIZE)
                 if len(buffer) > 0:
-                    print('Message received: %s' % buffer)
+                    print('Message received: ' + buffer)
+                    self.log('Message received: ' + buffer)
                 
                 state = buffer[:2]
 
                 if state == b'CR': # CHALLENGE RESPONSE
                     self.nonce = buffer[2:]     
                     print('Please enter your password and hit Enter')
+                    self.log('Please enter your password and hit Enter')
                     self.enterButton.setEnabled(True)
 
                 elif state == b'GH': # GENERATE HASHCHAINS e.g 'GH iv as68d56 iv af5fdb'
                     message = buffer[2:]
                     seeds = decryptAES(self.password, message)
-                    self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                     print('Hash chains are generated succesfully...')
+                    self.log('Hash chains are generated succesfully...')
+                    self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
+                    print('-------')
+                    self.log('-------')
+                    self.sc.reKey()
                     print('Please enter a valid iot device ID below')
+                    self.log('Please enter a valid iot device ID below')
 
-                elif state == b'AG':
-                    print('Authentication granted')
-                    
-                elif state == b'AF':
+                elif state == b'AP': # AUTHANTICATION RESPONSE
+                    if integrity_check(self.sc.getKey(), buffer):
+                        print('Integrity check is successfull...')
+                        self.log('Integrity check is successfull...')
+                        if self.sc.decrypt(buffer[2:-32]) == b'AF':
+                            print('Authorization failed')
+                            self.log('Authorization failed')
+                            self.requestButton.setEnabled(True)
+                        elif self.sc.decrypt(buffer[2:-32]) == b'AG':
+                            print('Authorization granted')
+                            self.log('Authorization granted')
+
+                elif state == b'AF': #AUTHORIZATION FAILED
+                    print('Something bad happened, please try again...')
+                    self.log('Something bad happened, please try again...')
+                    self.requestButton.setEnabled(True)
+
+                elif state == b'AN': # AUTHENTICATION NEEDED - KEY TIMED OUT
                     self.enterButton.setEnabled(True)
-                    self.passwordTextEdit.setEnabled(True)
-                    self.log('Password is wrong or your ip is not registered. Try to re-enter your password...')
-                
-                elif state == b'NA':
-                    self.enterButton.setEnabled(True)
-                    self.passwordTextEdit.setEnabled(True)
+
+                    self.print('Authentication time out..')
+                    self.print('Enter your password to authenticate again')
+
                     self.log('Authentication time out..')
                     self.log('Enter your password to authenticate again')
 
+                elif state == b'NA': # NO AUTHORIZATION
+                    print('You have no authorization to access this device')
+                    print('Please try to access to another device')
 
+                    self.log('You have no authorization to access this device')
+                    self.log('Please try to access to another device')
+                    self.requestButton.setEnabled(True)
 
-
-
-                    
-
+                elif state == b'WP': # WRONG PASSWORD
+                    self.log('Password is wrong or your ip is not registered. Try to re-enter your password...')
+                    print('Password is wrong or your ip is not registered. Try to re-enter your password...')
+                    self.enterButton.setEnabled(True)     
         except:
             import traceback
             traceback.print_exc()
