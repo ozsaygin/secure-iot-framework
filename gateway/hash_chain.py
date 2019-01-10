@@ -1,7 +1,6 @@
 from Crypto.Hash import SHA256
 
 class hash_chain:
-    h = SHA256.new()
 
     def __init__(self, length, seedP, seedQ):
         self.chainLength = length
@@ -27,9 +26,10 @@ class hash_chain:
             return xor
 
     def generate_hash(self, curr):
-        hash_chain.h.update(curr)
+        h = SHA256.new()
+        h.update(curr)
         #print(hash_chain.h.digest())
-        return hash_chain.h.digest()
+        return h.digest()
 
     def XOR(self, seedP, seedQ):
         result = b''
