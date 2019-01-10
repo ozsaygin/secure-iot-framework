@@ -23,13 +23,14 @@ MAX_BUFFER_SIZE = 4096
 
 def decryptAES(key, mess):
     iv = mess[:AES.block_size]
-    encs =  mess[AES.block_size:]
+    encs = mess[AES.block_size:]
     h = SHA256.new()
     h.update(key.encode())
     hashed_password = h.hexdigest()
     key = hashed_password[:16]
     cipher = AES.new(key.encode(), AES.MODE_CBC, iv)
     return Padding.unpad(cipher.decrypt(encs), 128, style='iso7816')
+
 
 def encryptAES(mess, key):
     h = SHA256.new()
@@ -42,16 +43,23 @@ def encryptAES(mess, key):
     cipher = AES.new(key, AES.MODE_CBC, iv)
     return iv + cipher.encrypt(raw)
 
+
 def package_message(key, message):
     if isinstance(key, str):
         key = key.encode()
     h = SHA256.new()
     h.update(key)
     hashed_password = h.hexdigest()
-    key = hashed_password[:16].encode() 
-    digest =  HMAC.new(key, message)
+    key = hashed_password[:16].encode()
+    digest = HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
     return message
+
+def get_mac():
+        from uuid import getnode as get_mac
+        mac = get_mac()
+        mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
+        return mac
 
 def integrity_check(key, message):
     if isinstance(key, str):
@@ -100,20 +108,15 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     # Action Buttons
     def close_event(self, event):
-        reply = QtWidgets.QMessageBox.question(self, 'Message', 'Are you sure to quit?', QtWidgets.QMessageBox.Yes, QtGui.QMessageBox.No)
+        reply = QtWidgets.QMessageBox.question(
+            self, 'Message', 'Are you sure to quit?', QtWidgets.QMessageBox.Yes, QtGui.QMessageBox.No)
         if reply == QtWidgets.QMessageBox.Yes:
             event.accept()
         else:
-            event.ignore
+            event.ignore()
 
     def log(self, message):
         self.eventLogTextEdit.append(message)
-
-    def get_mac():
-        from uuid import getnode as get_mac
-        mac = get_mac()
-        mac = ':'.join(("%012X" % mac)[i:i+2] for i in range(0, 12, 2))
-        return mac
 
     def request_iot(self):
         iotid = self.iotLineEdit.text()
@@ -124,7 +127,7 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.client.sendall(msg)
 
     def connect_server(self):
-        self.connectButton.setDisabled(True) # disable connect button
+        self.connectButton.setDisabled(True)  # disable connect button
 
         self.server_address = self.serverAddressLineEdit.text()
         self.server_port = int(self.portNumberLineEdit.text())
@@ -132,9 +135,11 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.client.connect((self.server_address, self.server_port))
         self.connected = True
 
-        self.log('Client is connecting to gateway (' + self.server_address + ':' + str(self.server_port) +  ')...')
-        print('Client is connecting to gateway(%s:%d)' % (self.server_address, self.server_port))
-        
+        self.log('Client is connecting to gateway (' +
+                 self.server_address + ':' + str(self.server_port) + ')...')
+        print('Client is connecting to gateway(%s:%d)' %
+              (self.server_address, self.server_port))
+
         res = b'AR' + get_mac().encode()
         self.client.sendall(res)
 
@@ -144,13 +149,13 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         # Buttons
         self.connect_button.setDisabled(True)
         self.disconnect.self.setEnabled(True)
-       
-        Thread(target = self.receive, args=()).start()
+
+        Thread(target=self.receive, args=()).start()
 
     def enter_password(self):
         self.password = self.passwordLineEdit.text()
 
-        print(Password: ' + str(self.password))
+        print('Password: ' + str(self.password))
         self.log('Password: ' + str(self.password))
 
         encrypted_message = encryptAES(self.nonce, self.password)
@@ -162,15 +167,14 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         self.client.sendall(res)
 
         print('Message sent for authentication: ' + str(res))
-        self.log('Message sent for authentication: ' + str(res)
-
+        self.log('Message sent for authentication: ' + str(res))
         self.enterButton.setDisabled(True)
         self.requestButton.setEnabled(True)
-    
-        
+
+
     def disconnect_server(self):
         self.client.close()
-        self.connected = False
+        self.connected=False
         self.connectButton.setEnabled(True)
         self.requestButton.setDisabled(True)
         self.enterButton.setDisabled(True)
@@ -179,32 +183,33 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
     def receive(self):
         try:
             while self.connected:
-                buffer = self.client.recv(self.MAX_BUFFER_SIZE)
+                buffer=self.client.recv(self.MAX_BUFFER_SIZE)
                 if len(buffer) > 0:
                     print('Message received: ' + buffer)
                     self.log('Message received: ' + buffer)
-                
-                state = buffer[:2]
 
-                if state == b'CR': # CHALLENGE RESPONSE
-                    self.nonce = buffer[2:]     
+                state=buffer[:2]
+
+                if state == b'CR':  # CHALLENGE RESPONSE
+                    self.nonce=buffer[2:]
                     print('Please enter your password and hit Enter')
                     self.log('Please enter your password and hit Enter')
                     self.enterButton.setEnabled(True)
 
-                elif state == b'GH': # GENERATE HASHCHAINS e.g 'GH iv as68d56 iv af5fdb'
-                    message = buffer[2:]
-                    seeds = decryptAES(self.password, message)
+                elif state == b'GH':  # GENERATE HASHCHAINS e.g 'GH iv as68d56 iv af5fdb'
+                    message=buffer[2:]
+                    seeds=decryptAES(self.password, message)
                     print('Hash chains are generated succesfully...')
                     self.log('Hash chains are generated succesfully...')
-                    self.sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
+                    self.sc=symmtrc_cypr(
+                        seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                     print('-------')
                     self.log('-------')
                     self.sc.reKey()
                     print('Please enter a valid iot device ID below')
                     self.log('Please enter a valid iot device ID below')
 
-                elif state == b'AP': # AUTHANTICATION RESPONSE
+                elif state == b'AP':  # AUTHANTICATION RESPONSE
                     if integrity_check(self.sc.getKey(), buffer):
                         print('Integrity check is successfull...')
                         self.log('Integrity check is successfull...')
@@ -216,18 +221,18 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                             print('Authorization granted')
                             self.log('Authorization granted')
 
-                elif state == b'AF': #AUTHORIZATION FAILED
+                elif state == b'AF':  # AUTHORIZATION FAILED
                     print('Something bad happened, please try again...')
                     self.log('Something bad happened, please try again...')
                     self.requestButton.setEnabled(True)
 
-                elif state == b'AN': # AUTHENTICATION NEEDED - KEY TIMED OUT
+                elif state == b'AN':  # AUTHENTICATION NEEDED - KEY TIMED OUT
                     self.enterButton.setEnabled(True)
 
                     self.print('Authentication time out..')
-                    res = b'AR'+ get_mac().encode()
+                    res=b'AR' + get_mac().encode()
                     self.client.sendall(res)
-                elif state == b'NA': # NO AUTHORIZATION
+                elif state == b'NA':  # NO AUTHORIZATION
                     print('You have no authorization to access this device')
                     print('Please try to access to another device')
 
@@ -235,10 +240,12 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                     self.log('Please try to access to another device')
                     self.requestButton.setEnabled(True)
 
-                elif state == b'WP': # WRONG PASSWORD
-                    self.log('Password is wrong or your ip is not registered. Try to re-enter your password...')
-                    print('Password is wrong or your ip is not registered. Try to re-enter your password...')
-                    self.enterButton.setEnabled(True)     
+                elif state == b'WP':  # WRONG PASSWORD
+                    self.log(
+                        'Password is wrong or your ip is not registered. Try to re-enter your password...')
+                    print(
+                        'Password is wrong or your ip is not registered. Try to re-enter your password...')
+                    self.enterButton.setEnabled(True)
         except:
             import traceback
             traceback.print_exc()

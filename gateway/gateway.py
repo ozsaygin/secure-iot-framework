@@ -23,7 +23,7 @@ hc = None
 
 GATEWAY_KEY = "su12345"
 
-HOST="127.0.0.1"
+HOST="0.0.0.0"
 PORT = 11114
 SERVER_PORT = ""
 
