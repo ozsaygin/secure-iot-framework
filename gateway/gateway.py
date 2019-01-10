@@ -77,54 +77,56 @@ def integrity_check(key, message):
         return False
 
 def receive(conn, ip, port):
-    while socket_list[ip][1]:
+    clientID = ip + ':' + port
+    while socket_list[clientID][1]:
         try:
-            print("")
             buffer=conn.recv(MAX_BUFFER_SIZE)
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
                 print("The length of input is probably too long: {}".format(siz))
-                socket_list[ip][2] = False
+                socket_list[clientID][2] = False
             else:
                 #----------states---------#
                 state = buffer[:2] #get state
                 print("State: ", state)
                 if state == b'AR':
+                    socket_list[clientID][4] = buffer[2:]
                     print("Authentication Request recieved.")
                     #get challenge from auth server
                     print("Requesting challenge from AS.")
                     auth_socket.send(b'AR ' + ip.encode())
                     nonce = auth_socket.recv(MAX_BUFFER_SIZE)
                     conn.send(nonce)
-                    print("CHALLENGE sent to ",ip , ".")
+                    print("CHALLENGE sent to ",clientID , ".")
                 elif state == b'CR':
-                    print("Challenge response recieved for IP: ", ip)
+                    print("Challenge response recieved for IP: ", clientID)
                     print("Forwarding challenge to AS.")
-                    auth_socket.send(b'CRSPLIT' + ip.encode() + b'SPLIT' + buffer[2:])
+                    auth_socket.send(b'CRSPLIT' + socket_list[clientID][4] + b'SPLIT' + buffer[2:])
                     authRespC = auth_socket.recv(MAX_BUFFER_SIZE)
                     if integrity_check(GATEWAY_KEY, authRespC):
                         print("CHALLENGE_RESPONSE AS Integrity check successful.")
                         if authRespC[:2] != b'WP':
                             authRespG = auth_socket.recv(MAX_BUFFER_SIZE)
-                            socket_list[ip][3] = True
+                            socket_list[clientID][3] = True
                             conn.send(b'GH' + authRespC[:-32])
                             if integrity_check(GATEWAY_KEY, authRespG):
                                 seeds = decryptAES(GATEWAY_KEY, authRespG[:-32])
                                 SC = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
-                                socket_list[ip][2] = SC
+                                socket_list[clientID][2] = SC
                         else:
-                            print(ip, "Client authorization request failed.")
+                            print(clientID, "Client authorization request failed.")
                             conn.send(b'WP')
                     else:
                         print("Integrity failed.")
                         conn.send(b'AF')
-                elif state == b'UR' and socket_list[ip][3]:
+                elif state == b'UR' and socket_list[clientID][3]:
                     print("Authorization Request recieved.")
-                    cypr = socket_list[ip][2]
+                    cypr = socket_list[clientID][2]
+                    print("****************************", cypr.getKey(), buffer)
                     if integrity_check(cypr.getKey(), buffer):
                         print("Integrity check is successful.")
                         iotid = cypr.decrypt(buffer[2:-32])
-                        req = iotid + ip.encode()
+                        req = iotid + socket_list[clientID][4]
                         encreq = encryptAES(req, GATEWAY_KEY)
                         auth_socket.send(package_message(GATEWAY_KEY, b'UR' + encreq))
                         resp = auth_socket.recv(MAX_BUFFER_SIZE)
@@ -133,7 +135,7 @@ def receive(conn, ip, port):
                             resp = decryptAES(GATEWAY_KEY, resp[:-32])
                             if resp == b'AG':
                                 print("Authorization granted!")
-                                auth_list[ip].append(iotid.decode('utf8'))
+                                auth_list[clientID].append(iotid.decode('utf8'))
                             else:
                                 print('Authorization failed.') 
                             encresp = cypr.encrypt(resp)
@@ -143,22 +145,22 @@ def receive(conn, ip, port):
                         conn.send(b'FA')
                 else:
                     print("Authorization needed.")
-                    socket_list[ip][1] = False
+                    socket_list[clientID][1] = False
                     conn.send(b'AN')
-                if socket_list[ip][3]:
+                if socket_list[clientID][3]:
                     print("---------")
-                    if not socket_list[ip][2].reKey():
-                        socket_list[ip][3] == False
-                        del auth_list[ip]
+                    if not socket_list[clientID][2].reKey():
+                        socket_list[clientID][3] == False
+                        del auth_list[clientID]
                         conn.send(b'AN')
         except:
             traceback.print_exc()
             if not terminating:
                 print('client has disconnected')
             conn.close()
-            socket_list[ip][1] = False
-    del socket_list[ip]
-    del auth_list[ip]
+            socket_list[clientID][1] = False
+    del socket_list[clientID]
+    del auth_list[clientID]
             
 def start():
     try:
@@ -175,9 +177,13 @@ def start():
             while True:
                 conn, addr = server.accept()
                 ip, port = str(addr[0]), str(addr[1])
+                print("---------------------------------------------")
+                print("---------------------------------------------")
                 print('Accepting connection from ' + ip + ':' + port)
-                socket_list[ip] = [conn, True, None, False]
-                auth_list[ip] = []
+                print("---------------------------------------------")
+                print("---------------------------------------------")
+                socket_list[ip + ':' + port] = [conn, True, None, False, None]
+                auth_list[ip + ':' + port] = []
                 try:
                     Thread(target=receive, args=(conn, ip, port)).start()
                 except:

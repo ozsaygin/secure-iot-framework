@@ -26,7 +26,8 @@ PORT=11111
 SERVER_PORT = ""
 
 auth_list = dict()
-auth_list["127.0.0.1"] = [["127.0.0.1"], "su123456"]
+auth_list["A4:5E:60:D4:45:53"] = [["A4:5E:60:D4:45:53"], "su123456"]
+auth_list["A6:5E:60:D4:45:53"] = [["A4:5E:60:D4:45:53"], "su123456"]
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -78,15 +79,16 @@ def integrity_check(key, message):
 
 def receive(conn, ip, port):
     nonce = None
-    GATEWAY_KEY = socket_list[ip][2]
-    while socket_list[ip][1]:
+    gatewayID = ip + ':' + port
+    GATEWAY_KEY = socket_list[gatewayID][2]
+    while socket_list[gatewayID][1]:
         try:
             print("")
             buffer=conn.recv(MAX_BUFFER_SIZE)
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
                 print("The length of input is probably too long: {}".format(siz))
-                socket_list[ip][2] = False
+                socket_list[gatewayID][2] = False
             else:
                 #----------states---------#
                 state = buffer[:2] #get state
@@ -96,17 +98,19 @@ def receive(conn, ip, port):
                     nonce = Random.new().read(16)
                     print("Generated NONCE: ", str(nonce))
                     conn.send(b'CR' + nonce)
-                    print("CHALLENGE sent to ",ip , ".")
+                    print("CHALLENGE sent to ",gatewayID , ".")
                 elif state == b'CR':
                     print("A challenge recieved.")
                     state, cip, encnonce = buffer.split(b'SPLIT')
                     cip = cip.decode('utf8')
                     plain_message = ""
+                    problem = False
                     try:
                         plain_message = decryptAES(auth_list[cip][1], encnonce)
                     except:
+                        problem = True
                         print("Wrong password.")
-                    if nonce == plain_message:
+                    if nonce == plain_message and (not problem):
                         print("Authentication succesful!")
                         # client packet
                         s1 = Random.new().read(AES.block_size)
@@ -133,18 +137,20 @@ def receive(conn, ip, port):
                             print("Authorization failed.")
                             mess = encryptAES(b'NA', GATEWAY_KEY)
                             conn.send(package_message(GATEWAY_KEY, mess))
+                    else:
+                        conn.send('')
+                        print("Integrity check failed.")
                 else:
                     print("Unexpected Path!")
-                    socket_list[ip][1] = False
+                    socket_list[gatewayID][1] = False
                 #----------states---------#
         except:
             traceback.print_exc()
-            recieving = False 
             if not terminating:
                 print('client has disconnected')
             conn.close()
-            socket_list[ip][1] = False
-    del socket_list[ip]
+            socket_list[gatewayID][1] = False
+    del socket_list[gatewayID]
             
 def start():
     try:
@@ -159,8 +165,12 @@ def start():
             while True:
                 conn, addr = server.accept()
                 ip, port = str(addr[0]), str(addr[1])
+                print("*********************************************")
+                print("*********************************************")
                 print('Accepting connection from ' + ip + ':' + port)
-                socket_list[ip] = [conn, True, "su12345"]
+                print("*********************************************")
+                print("*********************************************")
+                socket_list[ip + ':' + port] = [conn, True, "su12345"]
                 try:
                     Thread(target=receive, args=(conn, ip, port)).start()
                 except:
