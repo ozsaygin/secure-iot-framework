@@ -26,6 +26,7 @@ PORT=11111
 SERVER_PORT = ""
 
 auth_list = dict()
+auth_list["A4:5E:60:D4:45:53"] = [["A4:5E:60:D4:45:53"], "su123456"]
 auth_list["F4:0F:24:33:4A:DC"] = [["F4:0F:24:33:4A:DC"], "iot123456"]
 auth_list["70:C9:4E:FA:AB:EF"] = [["70:C9:4E:FA:AB:EF"], "su123456"]
 auth_list["F4:0F:24:33:4A:DC"] = [["F4:0F:24:33:4A:DC"], "su1234567"]

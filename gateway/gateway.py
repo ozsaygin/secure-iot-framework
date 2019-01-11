@@ -80,6 +80,9 @@ def receive(conn, ip, port):
     clientID = ip + ':' + port
     while socket_list[clientID][1]:
         try:
+            print("")
+            print("impossibru ", socket_list[clientID][3])
+            print("")
             buffer=conn.recv(MAX_BUFFER_SIZE)
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
@@ -122,7 +125,6 @@ def receive(conn, ip, port):
                 elif state == b'UR' and socket_list[clientID][3]:
                     print("Authorization Request recieved.")
                     cypr = socket_list[clientID][2]
-                    print("****************************", cypr.getKey(), buffer)
                     if integrity_check(cypr.getKey(), buffer):
                         print("Integrity check is successful.")
                         iotid = cypr.decrypt(buffer[2:-32])
@@ -150,8 +152,8 @@ def receive(conn, ip, port):
                 if socket_list[clientID][3]:
                     print("---------")
                     if not socket_list[clientID][2].reKey():
-                        socket_list[clientID][3] == False
-                        del auth_list[clientID]
+                        socket_list[clientID][3] = False
+                        auth_list[clientID] = []
                         conn.send(b'AN')
         except:
             traceback.print_exc()
