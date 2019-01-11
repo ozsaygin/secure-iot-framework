@@ -240,7 +240,8 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                 elif state == b'AN':  # AUTHENTICATION NEEDED - KEY TIMED OUT
                     self.enterButton.setEnabled(True)
 
-                    self.print('Authentication time out..')
+                    print('Authentication time out..')
+                    self.log('Authentication time out..')
                     res=b'AR' + get_mac().encode()
                     self.client.sendall(res)
                 elif state == b'NA':  # NO AUTHORIZATION
@@ -259,9 +260,10 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         'Password is wrong or your ip is not registered. Try to re-enter your password...')
                     self.enterButton.setEnabled(True)
         except:
+            import traceback
+            traceback.print_exc()
             self.client.close()
             print('bye bye!')
             self.log('bye bye!')
             sys.exit()
-            import traceback
-            traceback.print_exc()
+           

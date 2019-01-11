@@ -95,7 +95,7 @@ def receive():
             if state == b'CR': # CHALLENGE RESPONSE
                 nonce = buffer[2:]     
                 password = input('Please enter your password and hit Enter: ')
-                print('Client\'s password: ' + str(password))
+                print('iot\'s password: ' + str(password))
                 encrypted_message = encryptAES(nonce, password)
                 print('Nonce: ' + str(nonce))
                 res = b'CR' + encrypted_message
@@ -120,7 +120,7 @@ def receive():
             elif state == b'AN':
                 print('Authentication time out..')
                 res = b'AR'+ get_mac().encode()
-                self.client.sendall(res)
+                iot.sendall(res)
 
             elif state == b'WP':
                 
