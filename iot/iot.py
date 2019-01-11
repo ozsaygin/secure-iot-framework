@@ -74,7 +74,7 @@ def start():
         Thread(target=receive, args=()).start()
 
     except socket.error as msg:
-        print('Bind failed. Error : ' + str(sys.exc_info()) + msg)
+        print('Bind failed. Error : ' + str(sys.exc_info()) + str(msg))
         sys.exit()
 
 

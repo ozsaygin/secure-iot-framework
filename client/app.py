@@ -122,11 +122,15 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
     def request_iot(self):
         iotid = self.iotLineEdit.text()
-        self.connected_iots.append(iotid)
-        enc = self.sc.encrypt(iotid.encode())
-        msg = b'UR' + enc
-        msg = package_message(self.sc.getKey(), msg)
-        self.client.sendall(msg)
+        if len(iotid) == 17:
+            self.connected_iots.append(iotid)
+            self.sc.reKey()
+            enc = self.sc.encrypt(iotid.encode())  
+            msg = b'UR' + enc
+            msg = package_message(self.sc.getKey(), msg)
+            self.client.sendall(msg)
+        else: 
+            self.log('Invalid id lenght. Please enter a valid id...')
 
     def connect_server(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -147,9 +151,6 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
             res = b'AR' + get_mac().encode()
             self.client.sendall(res)
 
-            self.log('Message sent for authentication: ' + str(res))
-            print('Message sent for authentication: %s' % str(res))
-
             # Buttons
             self.connectButton.setDisabled(True)
             self.disconnectButton.setEnabled(True)
@@ -169,13 +170,12 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         encrypted_message = encryptAES(self.nonce, self.password)
 
         print('Nonce: ' + str(self.nonce))
-        self.log('Nonce: ' + str(self.nonce))
+        # self.log('Nonce: ' + str(self.nonce))
 
         res = b'CR' + encrypted_message
         self.client.sendall(res)
 
-        print('Message sent for authentication: ' + str(res))
-        self.log('Message sent for authentication: ' + str(res))
+        self.log('Sent: CR')
         self.enterButton.setDisabled(True)
         self.requestButton.setEnabled(True)
 
@@ -195,11 +195,10 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         try:
             while self.connected:
                 buffer=self.client.recv(self.MAX_BUFFER_SIZE)
-                if len(buffer) > 0:
-                    print('Message received: ' + str(buffer))
-                    self.log('Message received: ' + str(buffer))
 
                 state=buffer[:2]
+                print('\nState: ' + str(state) + '\n')
+                self.log('\nState: ' + str(state) + '\n')
 
                 if state == b'CR':  # CHALLENGE RESPONSE
                     self.nonce=buffer[2:]
@@ -216,21 +215,23 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
                         seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
                     print('-------')
                     self.log('-------')
-                    self.sc.reKey()
+                    # self.sc.reKey()
                     print('Please enter a valid iot device ID below')
                     self.log('Please enter a valid iot device ID below')
 
-                elif state == b'AP':  # AUTHANTICATION RESPONSE
+                elif state == b'AP':  # Authorization RESPONSE
                     if integrity_check(self.sc.getKey(), buffer):
                         print('Integrity check is successfull...')
                         self.log('Integrity check is successfull...')
-                        if self.sc.decrypt(buffer[2:-32]) == b'AF':
+                        if self.sc.decrypt(buffer[2:-32]) == b'NA':
                             print('Authorization failed')
                             self.log('Authorization failed')
                             self.requestButton.setEnabled(True)
                         elif self.sc.decrypt(buffer[2:-32]) == b'AG':
                             print('Authorization granted')
                             self.log('Authorization granted')
+                    else: 
+                        print('Integrity check failed')
 
                 elif state == b'AF':  # AUTHORIZATION FAILED
                     print('Something bad happened, please try again...')
@@ -239,18 +240,13 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 elif state == b'AN':  # AUTHENTICATION NEEDED - KEY TIMED OUT
                     self.enterButton.setEnabled(True)
-
+                    self.requestButton.setDisabled(True)
                     print('Authentication time out..')
                     self.log('Authentication time out..')
                     res=b'AR' + get_mac().encode()
+                    self.log('Sent: AR')
                     self.client.sendall(res)
-                elif state == b'NA':  # NO AUTHORIZATION
-                    print('You have no authorization to access this device')
-                    print('Please try to access to another device')
-
-                    self.log('You have no authorization to access this device')
-                    self.log('Please try to access to another device')
-                    self.requestButton.setEnabled(True)
+             
 
                 elif state == b'WP':  # WRONG PASSWORD
                     self.requestButton.setDisabled(True)

@@ -81,8 +81,8 @@ def receive(conn, ip, port):
     while socket_list[clientID][1]:
         try:
             print("")
-            print("impossibru ", socket_list[clientID][3])
-            print("")
+            # print("impossibru ", socket_list[clientID][3])
+
             buffer=conn.recv(MAX_BUFFER_SIZE)
             siz=sys.getsizeof(buffer)
             if siz >= MAX_BUFFER_SIZE:
