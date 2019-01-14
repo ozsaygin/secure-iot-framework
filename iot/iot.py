@@ -8,7 +8,7 @@ from threading import Thread
 import sys
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
-
+from time import time
 from symmetric_cyphr import symmtrc_cypr
 
 from hash_chain import hash_chain
@@ -96,7 +96,10 @@ def receive():
                 nonce = buffer[2:]     
                 password = input('Please enter your password and hit Enter: ')
                 print('iot\'s password: ' + str(password))
+                start = time()
                 encrypted_message = encryptAES(nonce, password)
+                end = time()
+                print('encrypt aes time: %.4f' %(end-start))
                 print('Nonce: ' + str(nonce))
                 res = b'CR' + encrypted_message
                 iot.sendall(res)
@@ -104,12 +107,21 @@ def receive():
 
             elif state == b'GH':
                 message = buffer[2:]
+                start = time()
                 seeds = decryptAES(password, message)
-                print('Hash chains are generated succesfully...')
-                sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
-                print('-------')
-                sc.reKey()
+                end = time()
 
+                print('decrypt aes time: %.4f' %(end-start))
+                print('Hash chains are generated succesfully...')
+                start = time()
+                sc = symmtrc_cypr(seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
+                end = time()
+                print('generate hash chain time: %.4f' %(end-start))
+                print('-------')
+                start = time()
+                sc.reKey()
+                end = time()
+                print('rekey time: %.4f' %(end-start))
             elif state == b'AF':
                 password = input('Password is wrong or your ip is not registered. Please re-enter your password: ')
                 encrypted_message = encryptAES(nonce, password)

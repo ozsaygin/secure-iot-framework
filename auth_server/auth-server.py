@@ -10,9 +10,18 @@ import sys
 import random
 from threading import Thread
 from binascii import hexlify
-
+from time import time
 import traceback
 
+'''
+import time
+
+start = time.time()
+print("hello")
+end = time.time()
+print(end - start)
+
+'''
 gateway_ip = "127.0.0.1"
 socket_list = dict()
 MAX_BUFFER_SIZE = 4096
@@ -27,14 +36,15 @@ SERVER_PORT = ""
 
 auth_list = dict()
 auth_list["A4:5E:60:D4:45:53"] = [["A4:5E:60:D4:45:53"], "ata123456"]
-auth_list["F4:0F:24:33:4A:DC"] = [["F4:0F:24:33:4A:DC"], "iot123456"]
-auth_list["70:C9:4E:FA:AB:EF"] = [["70:C9:4E:FA:AB:EF"], "su123456"]
-auth_list["F4:0F:24:33:4A:DC"] = [["F4:0F:24:33:4A:DC"], "su1234567"]
+auth_list["EE:04:B8:FA:60:0D"] = [["EE:04:B8:FA:60:0D"], "iot123456"]
+auth_list["70:C9:4E:FA:AB:EF"] = [["70:C9:4E:FA:AB:EF", "EE:04:B8:FA:60:0D"], "su123456"]
+auth_list["F4:0F:24:33:4A:DC"] = [["F4:0F:24:33:4A:DC", "EE:04:B8:FA:60:0D"], "su1234567"]
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 def encryptAES(mess, key):
+
     h = SHA256.new()
     h.update(key.encode())
     hashed_password = h.hexdigest()

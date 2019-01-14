@@ -5,6 +5,7 @@ from Crypto.Cipher import AES
 from Crypto.Util import Padding
 from Crypto import Random
 
+from time import time
 import socket
 import sys
 from threading import Thread
@@ -130,6 +131,7 @@ def receive(conn, ip, port):
                         iotid = cypr.decrypt(buffer[2:-32])
                         req = iotid + socket_list[clientID][4]
                         encreq = encryptAES(req, GATEWAY_KEY)
+
                         auth_socket.send(package_message(GATEWAY_KEY, b'UR' + encreq))
                         resp = auth_socket.recv(MAX_BUFFER_SIZE)
                         if integrity_check(GATEWAY_KEY, resp):

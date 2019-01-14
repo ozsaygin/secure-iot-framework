@@ -13,7 +13,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5 import uic
 
 from hash_chain import hash_chain
-
+from time import time
 
 qtCreatorFile = "mainwindow.ui"
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
@@ -47,12 +47,18 @@ def encryptAES(mess, key):
 def package_message(key, message):
     if isinstance(key, str):
         key = key.encode()
+    start = time()
     h = SHA256.new()
     h.update(key)
     hashed_password = h.hexdigest()
     key = hashed_password[:16].encode()
+    end = time()
+    print('hash of pwd time: %.4f' % (end-start))
+    start = time()
     digest = HMAC.new(key, message)
     message = message + digest.hexdigest().encode()
+    end = time()
+    print('hmac time: %.4f' % (end -start))
     return message
 
 def get_mac():
@@ -124,8 +130,14 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
         iotid = self.iotLineEdit.text()
         if len(iotid) == 17:
             self.connected_iots.append(iotid)
+            start = time()
             self.sc.reKey()
+            end = time()
+            print('rekey time: %.4f' % (end-start))
+            start = time()
             enc = self.sc.encrypt(iotid.encode())  
+            end = time()
+            print('hash enc time: %.4f' % (end-start))
             msg = b'UR' + enc
             msg = package_message(self.sc.getKey(), msg)
             self.client.sendall(msg)
@@ -166,9 +178,10 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
         print('Password: ' + str(self.password))
         self.log('Password: ' + str(self.password))
-
+        start = time()
         encrypted_message = encryptAES(self.nonce, self.password)
-
+        end = time()
+        print('enc AES time: %.4f' % (end-start)) 
         print('Nonce: ' + str(self.nonce))
         # self.log('Nonce: ' + str(self.nonce))
 
@@ -208,11 +221,19 @@ class App(QtWidgets.QMainWindow, Ui_MainWindow):
 
                 elif state == b'GH':  # GENERATE HASHCHAINS e.g 'GH iv as68d56 iv af5fdb'
                     message=buffer[2:]
+                    start = time()
                     seeds=decryptAES(self.password, message)
+                    end = time()
+                    print('decrypt AES time: %.4f' % (end - start))
+
                     print('Hash chains are generated succesfully...')
                     self.log('Hash chains are generated succesfully...')
+
+                    start = time()
                     self.sc=symmtrc_cypr(
                         seeds[AES.block_size:2*AES.block_size], seeds[:AES.block_size])
+                    end = time()
+                    print('Hash chain generate time: %.4f' % (end - start))
                     print('-------')
                     self.log('-------')
                     # self.sc.reKey()
