@@ -34,12 +34,9 @@ PORT=11111
 
 SERVER_PORT = ""
 
+# auth_list tracks which devices have authorization to which iot devices
+# example: auth_list[$AUTHORIZED_CLIENTS_MAC$] = [[$AUTHORIZED_CLIENT_MAC$, $IOT_DEVICE$], $PASSWORD$]
 auth_list = dict()
-auth_list["A4:5E:60:D4:45:53"] = [["A4:5E:60:D4:45:53"], "ata123456"]
-auth_list["EE:04:B8:FA:60:0D"] = [["EE:04:B8:FA:60:0D"], "iot123456"]
-auth_list["70:C9:4E:FA:AB:EF"] = [["70:C9:4E:FA:AB:EF", "EE:04:B8:FA:60:0D"], "su123456"]
-auth_list["F4:0F:24:33:4A:DC"] = [["F4:0F:24:33:4A:DC", "EE:04:B8:FA:60:0D"], "su1234567"]
-
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
